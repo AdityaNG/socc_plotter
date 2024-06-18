@@ -3,8 +3,8 @@ pyqtgraph
 numpy
 matplotlib
 opencv-python
-torch
 PyOpenGL
 qimage2ndarray
 vedo
 pydantic
+pillow

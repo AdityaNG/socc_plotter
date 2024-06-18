@@ -1,5 +1,6 @@
-from PyQt5.Qt import Qt
 import pyqtgraph.opengl as gl
+from PyQt5.Qt import Qt
+
 
 class Window3D(gl.GLViewWidget):
     def __init__(self):

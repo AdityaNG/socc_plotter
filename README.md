@@ -36,8 +36,12 @@ mkdir -p data/nuscenes/
 cd data/nuscenes/
 wget -c https://www.nuscenes.org/data/v1.0-mini.tgz
 tar -xf v1.0-mini.tgz
+```
 
-pip install nuscenes-devkit
+Install a few dependencies for the demo
+```
+pip install nuscenes-devkit==1.1.10
+pip install transformers torch torchvision timm
 ```
 
 Run the demo
@@ -50,3 +54,14 @@ $ socc_plotter
 ## Development
 
 Read the [CONTRIBUTING.md](CONTRIBUTING.md) file.
+
+
+## TODO
+
+- [] Demo
+    - [] RGB Frame
+    - [] Depth perception
+    - [] Semantic segmentation
+    - [] NuScenes Calibration
+- [] Test Cases
+- [] PiPy deployment
