@@ -23,6 +23,12 @@ class Plotter:
     _callback: Callable
 
     def __init__(self, callback: Callable):
+        """
+        Semantic Occupancy Plotter
+        """
+
+        # TODO: preemptive check to ensure opencv-python-headless is installed
+
         self.set_callback(callback)
 
         self.app = QtWidgets.QApplication([])
@@ -148,9 +154,20 @@ class Plotter:
             pos=QtGui.QVector3D(0, 0, 0),
         )
         ##################################################
+        self.graph_context = dict(
+            mesh_region=self.mesh_region, graph_region=self.graph_region
+        )
 
     def set_callback(self, callback: Callable) -> None:
         self._callback = callback
+
+    def update_graph(
+        self,
+    ) -> None:
+        try:
+            self._callback(self.graph_context)
+        except KeyboardInterrupt:
+            exit(0)
 
     def start(self) -> None:
         """
@@ -160,7 +177,7 @@ class Plotter:
         self.window_2D.show()
 
         timer = QtCore.QTimer()
-        timer.timeout.connect(self._callback)
+        timer.timeout.connect(self.update_graph)
         timer.start(1)
 
         QtGui.QGuiApplication.instance().exec_()  # type: ignore
@@ -169,9 +186,16 @@ class Plotter:
 def main():
     import time
 
-    def callback():
+    def callback(graph_context):
         time.sleep(1)
-        print("in callback")
+        print("in callback", graph_context)
+        # mesh_region = graph_context["mesh_region"]
+        graph_region = graph_context["graph_region"]
+
+        points = np.array([[1, 0, 0]])
+        colors = np.array([[1, 1, 1]])
+
+        graph_region.setData(pos=points, color=colors)
 
     plotter = Plotter(
         callback=callback,

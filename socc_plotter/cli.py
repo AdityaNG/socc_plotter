@@ -4,6 +4,7 @@ Demo to run on NuScenes Mini
 """
 
 import os
+from typing import Tuple, Optional
 
 import cv2
 import numpy as np
@@ -48,6 +49,83 @@ def semantic_to_rgb(pred_semantic_map):
     return color_map
 
 
+def estimate_intrinsics(
+    fov_x: float,  # degrees
+    fov_y: float,  # degrees
+    height: int,  # pixels
+    width: int,  # pixels
+) -> np.ndarray:
+    """
+    The intrinsic matrix can be extimated from the FOV and image dimensions
+
+    :param fov_x: FOV on x axis in degrees
+    :type fov_x: float
+    :param fov_y: FOV on y axis in degrees
+    :type fov_y: float
+    :param height: Height in pixels
+    :type height: int
+    :param width: Width in pixels
+    :type width: int
+    :returns: (3,3) intrinsic matrix
+    """
+    c_x = width / 2.0
+    c_y = height / 2.0
+    f_x = c_x / np.tan(fov_x / 2.0)
+    f_y = c_y / np.tan(fov_y / 2.0)
+
+    intrinsic_matrix = np.array(
+        [
+            [f_x, 0, c_x],
+            [0, f_y, c_y],
+            [0, 0, 1],
+        ],
+        dtype=np.float16,
+    )
+
+    return intrinsic_matrix
+
+
+def get_socc(
+    depth: np.ndarray,
+    semantics: np.ndarray,
+    scale: Tuple[float, float, float] = (1, 1, 1),
+    intrinsics: Optional[np.ndarray] = None,
+):
+    """
+    Takes depth and semantics as input and produces 3D semantic occupancy
+    """
+
+    HEIGHT, WIDTH = depth.shape
+
+    if intrinsics is None:
+        intrinsics = estimate_intrinsics(60, 60, HEIGHT, WIDTH)
+
+    fx = intrinsics[0, 0]
+    fy = intrinsics[1, 1]
+    cx = intrinsics[0, 2]
+    cy = intrinsics[1, 2]
+    points = np.zeros((HEIGHT, WIDTH, 3), dtype=np.float32)
+
+    U, V = np.ix_(
+        np.arange(HEIGHT), np.arange(WIDTH)
+    )  # pylint: disable=unbalanced-tuple-unpacking
+    Z = depth.copy()
+
+    X = (V - cx) * Z / fx
+    Y = (U - cy) * Z / fy
+
+    points[:, :, 0] = X * scale[0]
+    points[:, :, 1] = Y * scale[1]
+    points[:, :, 2] = Z * scale[2]
+
+    colors = semantics / 255.0
+
+    points = points.reshape(HEIGHT * WIDTH, 3)
+    colors = colors.reshape(HEIGHT * WIDTH, 3)
+
+    return (points, colors)
+
+
 @torch.no_grad()
 def main():  # pragma: no cover
     """
@@ -57,6 +135,7 @@ def main():  # pragma: no cover
     Runs Semantic Occupancy plotting on the NuScenes dataset
     """
 
+    global nusc
     global current_sample_token
     global depth_estimator
     global model_mask2former, image_processor
@@ -100,16 +179,20 @@ def main():  # pragma: no cover
 
     current_sample_token = scene["first_sample_token"]
 
-    def loop():
+    def loop(graph_context):
+        global nusc
         global current_sample_token
         global depth_estimator
         global model_mask2former, image_processor
+
+        # mesh_region = graph_context["mesh_region"]
+        graph_region = graph_context["graph_region"]
 
         sample = nusc.get("sample", current_sample_token)
 
         frame_data = dict()
 
-        for sensor in sensors:
+        for sensor in sensors[:1]:
             # PIL image
             cam_data = nusc.get("sample_data", sample["data"][sensor])
 
@@ -150,6 +233,10 @@ def main():  # pragma: no cover
             depth_np = depth_prediction.cpu().numpy()
 
             pred_semantic_map_np = semantic_to_rgb(pred_semantic_map_np)
+
+            socc = get_socc(depth_np, pred_semantic_map_np)
+            graph_region.setData(pos=socc[0], color=socc[1])
+
             depth_np = depth_to_rgb(depth_np)
 
             print("rgb_img_np", rgb_img_np.shape, rgb_img_np.dtype)
@@ -166,27 +253,34 @@ def main():  # pragma: no cover
                 "semantics": pred_semantic_map_np,
             }
 
-        vis = np.hstack(
-            (
-                frame_data["CAM_FRONT"]["rgb"],
-                frame_data["CAM_FRONT"]["depth"],
-                frame_data["CAM_FRONT"]["semantics"],
-            )
-        )
-        vis = cv2.resize(vis, (0, 0), fx=0.25, fy=0.25)
-        cv2.imshow("ui", vis)
+        # vis = np.hstack(
+        #     (
+        #         frame_data["CAM_FRONT"]["rgb"],
+        #         frame_data["CAM_FRONT"]["depth"],
+        #         frame_data["CAM_FRONT"]["semantics"],
+        #     )
+        # )
 
-        key = cv2.waitKey(1)
+        # vis = cv2.resize(vis, (0, 0), fx=0.25, fy=0.25)
+        # cv2.imshow("ui", vis)
 
-        if key == ord("q"):
-            exit(0)
+        # key = cv2.waitKey(1)
+
+        # if key == ord("q"):
+        #     exit(0)
 
         current_sample_token = sample["next"]
         if current_sample_token is None:
             current_sample_token = scene["first_sample_token"]
 
-    while True:
-        loop()
+    # while True:
+    #     loop()
+    from socc_plotter.plotter import Plotter
+
+    plotter = Plotter(
+        callback=loop,
+    )
+    plotter.start()
 
 
 if __name__ == "__main__":

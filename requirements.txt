@@ -2,7 +2,7 @@ PyQt5
 pyqtgraph
 numpy
 matplotlib
-opencv-python
+opencv-python-headless
 PyOpenGL
 qimage2ndarray
 vedo
