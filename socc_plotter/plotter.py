@@ -11,6 +11,7 @@ from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import QLabel, QVBoxLayout
 from pyqtgraph.Vector import Vector
 
+from .trajectory_utils import create_meshes, trajectory_to_3D
 from .window2d import Window2D
 from .window3d import Window3D
 
@@ -89,10 +90,10 @@ class Plotter:
 
         self.window_3D.resize(800, 600)
         self.window_3D.opts["center"] = Vector(0, Y_OFFSET, 0)
-        self.window_3D.opts["distance"] = 50
+        self.window_3D.opts["distance"] = 40
         self.window_3D.opts["rotation"] = QtGui.QQuaternion(1, 0, 0, 0)
         self.window_3D.opts["fov"] = 30
-        self.window_3D.opts["elevation"] = 15
+        self.window_3D.opts["elevation"] = 10
         self.window_3D.opts["azimuth"] = -90
         self.window_3D.setWindowTitle("UI 3D")
         # self.window_3D.setWindowFlags(Qt.FramelessWindowHint)
@@ -107,6 +108,7 @@ class Plotter:
         self.grid_item = gl.GLGridItem(
             size=QtGui.QVector3D(40, 60, 1),
         )
+        self.grid_item.translate(0, 0, -1.0)
 
         self.mesh_region = gl.GLMeshItem(
             pos=np.array([0, Y_OFFSET, 0], dtype=np.float32).reshape(1, 3),
@@ -116,18 +118,21 @@ class Plotter:
             drawEdges=False,
             edgeColor=(0, 0, 0, 1),
         )
-        self.mesh_region.translate(0, Y_OFFSET, 0)
+        # self.mesh_region.translate(0, Y_OFFSET, 0)
+        self.mesh_region.rotate(180, 1, 0, 0)
 
         self.graph_region = gl.GLScatterPlotItem(
             pos=np.zeros((1, 3), dtype=np.float32),
             color=(0, 1, 0, 0.5),
-            size=0.10,
+            size=0.1,
+            # size=0.05,
             pxMode=False,
         )
         # self.graph_region.rotate(90, 1, 0, 0)
         self.graph_region.rotate(180, 1, 0, 0)
         # self.graph_region.rotate(180, 0, 0, 1)
         # self.graph_region.translate(0, Y_OFFSET, 0)
+        self.graph_region.translate(0, 0, 2)
 
         car = vedo.load("media/car.obj")
         # car_faces = np.array(car.faces())
@@ -137,7 +142,7 @@ class Plotter:
         car_colors = np.array(
             [[0.5, 0.5, 0.5, 1] for i in range(len(car_faces))]
         )
-        car_vertices = 0.025 * car_vertices * 2.5
+        car_vertices = 0.025 * car_vertices * 2.0
 
         self.car_mesh_region = gl.GLMeshItem(
             pos=np.array([0, Y_OFFSET, 0], dtype=np.float32).reshape(1, 3),
@@ -151,15 +156,27 @@ class Plotter:
         self.car_mesh_region.rotate(180, 0, 0, 1)
         # self.car_mesh_region.translate(0, Y_OFFSET, 1.0)
 
-        self.window_3D.addItem(self.car_mesh_region)
-        # self.window_3D.addItem(self.mesh_region)
         # self.window_3D.addItem(self.occupancy_mesh_region)
         self.window_3D.addItem(self.graph_region)
         self.window_3D.addItem(self.grid_item)
+
+        self.window_3D.addItem(self.mesh_region)
+        self.window_3D.addItem(self.car_mesh_region)
         self.window_3D.setCameraPosition(
-            pos=QtGui.QVector3D(0, 0, 0),
+            pos=QtGui.QVector3D(0, -Y_OFFSET, 0),
         )
         ##################################################
+
+    def set_3D_trajectory(self, trajectory: np.ndarray, wheel_base: float):
+        trajectory_3D = trajectory_to_3D(trajectory)
+        mesh_data = create_meshes(
+            trajectory_3D, wheel_base, color=(0.0, 1.0, 0.0, 1.0)
+        )
+        self.mesh_region.setMeshData(
+            vertexes=np.array(mesh_data["vertexes"], dtype=np.float32),
+            faces=np.array(mesh_data["faces"], dtype=np.uint32),
+            faceColors=np.array(mesh_data["faceColors"], dtype=np.float32),
+        )
 
     def set_callback(self, callback: Callable) -> None:
         self._callback = callback
@@ -184,9 +201,22 @@ class Plotter:
         self.image_label.setPixmap(qImg)
 
     def set_3D_visual(self, points: np.ndarray, colors: np.ndarray) -> None:
+        colors_with_alpha = np.ones((colors.shape[0], 4))
+
+        # Copy the RGB values
+        colors_with_alpha[:, :3] = colors
+
+        blanks = (
+            np.isclose(colors_with_alpha[:, 0], 0)
+            & np.isclose(colors_with_alpha[:, 1], 0)
+            & np.isclose(colors_with_alpha[:, 2], 0)
+            & np.isclose(colors_with_alpha[:, 3], 1)
+        )
+        colors_with_alpha[blanks] = (0.5, 0.5, 0.5, 0.2)
+
         self.graph_region.setData(
             pos=points,
-            color=colors,
+            color=colors_with_alpha,
         )
 
     def sleep(self, seconds: float) -> None:

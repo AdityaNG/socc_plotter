@@ -10,6 +10,7 @@ from typing import Callable, Dict, List, Optional, Tuple, cast
 import cv2
 import numpy as np
 import torch
+from general_navigation.models.model_utils import plot_steering_traj
 from nuscenes.nuscenes import NuScenes
 from PIL import Image
 from pyquaternion import Quaternion
@@ -19,7 +20,80 @@ from transformers import (
     Mask2FormerForUniversalSegmentation,
 )
 
-from .colormap import create_ade20k_label_colormap, socc_label_colormap
+from .colormap import create_cityscapes_label_colormap
+from .occupancy_grid import uniform_density_colorwise
+
+
+def create_transformation_matrix(
+    pos: Tuple[float, float, float], rot: Tuple[float, float, float, float]
+) -> np.ndarray:
+    """
+    Creates a 4x4 transformation matrix from position and rotation.
+
+    :param pos: List or array of three position coordinates [x, y, z].
+    :param rot: List or array of four quaternion components [qw, qx, qy, qz].
+    :return: A 4x4 transformation matrix.
+    """
+    # Convert rotation to a Quaternion object
+    quat = Quaternion(rot)
+
+    # Create a 4x4 identity matrix
+    transformation_matrix = np.eye(4)
+
+    # Set the rotation part (3x3 matrix)
+    transformation_matrix[:3, :3] = quat.rotation_matrix
+
+    # Set the translation part
+    transformation_matrix[:3, 3] = pos
+
+    return transformation_matrix
+
+
+def get_future_vehicle_trajectory(
+    nusc: NuScenes, current_sample_token: str, future_horizon: int = 6
+) -> np.ndarray:
+    """
+    Extracts the future vehicle trajectory starting from a given sample token.
+
+    :param nusc: NuScenes object.
+    :param current_sample_token: Token of the current sample to start from
+    :param future_horizon: Number of future time steps to consider.
+    :return: A dictionary with vehicle trajectories.
+    """
+    vehicle_trajectory = []
+
+    sample_token = current_sample_token
+
+    for _ in range(future_horizon):
+        if not sample_token:
+            break
+
+        sample = nusc.get("sample", sample_token)
+        cam_front_data = nusc.get("sample_data", sample["data"]["CAM_FRONT"])
+        ego_pose_token = cam_front_data["ego_pose_token"]
+
+        ego_pose = nusc.get("ego_pose", ego_pose_token)
+        pos = ego_pose["translation"]
+        rot = ego_pose["rotation"]
+
+        vehicle_pose = create_transformation_matrix(pos, rot)
+
+        vehicle_trajectory.append(vehicle_pose)
+
+        sample_token = sample["next"]  # Move to the next sample in the scene.
+
+    vehicle_trajectory_np = np.array(vehicle_trajectory)
+
+    origin = vehicle_trajectory_np[0]
+    vehicle_trajectory_np = np.linalg.inv(origin) @ vehicle_trajectory_np
+
+    vehicle_trajectory_xy = vehicle_trajectory_np[:, [1, 0], 3]
+
+    return vehicle_trajectory_xy
+
+
+def new_func():
+    exit()
 
 
 def depth_to_rgb(depth_map):
@@ -42,7 +116,9 @@ def depth_to_rgb(depth_map):
     return color_mapped_image
 
 
-def semantic_to_rgb(pred_semantic_map, palette=create_ade20k_label_colormap()):
+def semantic_to_rgb(
+    pred_semantic_map, palette=create_cityscapes_label_colormap()
+):
     # Convert segmentation map to color map
     color_map = palette[pred_semantic_map]
 
@@ -92,7 +168,8 @@ def get_socc(
     semantics: np.ndarray,
     scale: Tuple[float, float, float] = (1, 1, -1),
     intrinsics: Optional[np.ndarray] = None,
-    subsample: int = 10,
+    subsample: int = 30,
+    mask: Optional[np.ndarray] = None,
 ):
     """
     Takes depth and semantics as input and produces 3D semantic occupancy
@@ -109,9 +186,16 @@ def get_socc(
     cy = intrinsics[1, 2]
     focal_length = (fx + fy) / 2.0
     print("focal_length", focal_length)
-    baseline = 2.0
+    baseline = 1.0
     points = np.zeros((HEIGHT, WIDTH, 3), dtype=np.float32)
 
+    if mask is None:
+        # default to bottom half of image
+        mask = np.zeros((HEIGHT, WIDTH), dtype=bool)
+        mask[HEIGHT // 2 :, :] = 1
+        # mask[:, WIDTH//2:] = 1
+
+    disparity[~mask] = -1.0
     depth = focal_length * baseline * np.reciprocal(disparity)
 
     U, V = np.ix_(
@@ -128,14 +212,23 @@ def get_socc(
 
     colors = semantics / 255.0
 
-    points = points.reshape(HEIGHT * WIDTH, 3)
-    colors = colors.reshape(HEIGHT * WIDTH, 3)
+    # points = points[mask]
+    # colors = colors[mask]
+
+    # points = points.reshape(HEIGHT * WIDTH, 3)
+    # colors = colors.reshape(HEIGHT * WIDTH, 3)
+    points = points.reshape(-1, 3)
+    colors = colors.reshape(-1, 3)
 
     # subsample
     points = points[::subsample, :]
     colors = colors[::subsample, :]
 
     points = points[:, [0, 2, 1]]
+
+    points = points.clip(-80, 80)
+
+    points, colors = uniform_density_colorwise(points, colors, 0.15, 1)
 
     return (points, colors)
 
@@ -158,7 +251,7 @@ def infer_semantics_and_depth(
     print("current_sample_token", current_sample_token)
     cache_pkl_path = os.path.join(cacheroot, current_sample_token + ".pkl")
     if not os.path.exists(cache_pkl_path):
-        colormap = socc_label_colormap()
+        colormap = create_cityscapes_label_colormap()
 
         for sensor in sensors:
             # PIL image
@@ -284,7 +377,18 @@ def infer_semantics_and_depth(
     return frame_data
 
 
-def get_2D_visual(frame_data: Dict):
+def overlay_semantics(cam_data: Dict) -> np.ndarray:
+    semantics = cam_data["semantics_rgb"].astype(np.uint8)
+    semantics = cv2.cvtColor(semantics, cv2.COLOR_BGR2RGB)
+
+    cam_frame = cv2.addWeighted(
+        cam_data["rgb"].astype(np.uint8), 1.0, semantics, 0.2, 0.0
+    )
+
+    return cam_frame
+
+
+def get_2D_visual(frame_data: Dict, trajectory: np.ndarray):
     # Get the dimensions of the images (assuming all are the same size)
     image_height, image_width, _ = frame_data["CAM_FRONT"]["rgb"].shape
 
@@ -303,32 +407,49 @@ def get_2D_visual(frame_data: Dict):
     # Create a blank layout image
     layout_image = np.zeros((layout_height, layout_width, 3), dtype=np.uint8)
 
+    front_frame = overlay_semantics(frame_data["CAM_FRONT"])
+
+    front_frame = plot_steering_traj(
+        front_frame,
+        trajectory,
+        # color=(255, 255, 255),
+        color=(0, 255, 0),
+        offsets=(0, -1.4, 1.5),
+        # offsets=(0, 0.2, 0.0),
+        track=True,
+        track_width=1.4,
+        fov_x=70,
+        fov_y=70,
+    )
+
     # Place CAM_FRONT at the top spanning two rows
     layout_image[:double_row_height, :] = cv2.resize(
-        frame_data["CAM_FRONT"]["depth_rgb"], (layout_width, double_row_height)
+        front_frame,
+        (layout_width, double_row_height),
     )
 
     # Place CAM_FRONT_LEFT and CAM_FRONT_RIGHT in the third row
     layout_image[
         double_row_height : double_row_height + row_height, :column_width
-    ] = frame_data["CAM_FRONT_LEFT"]["rgb"]
+    ] = overlay_semantics(frame_data["CAM_FRONT_LEFT"])
     layout_image[
         double_row_height : double_row_height + row_height, column_width:
-    ] = frame_data["CAM_FRONT_RIGHT"]["rgb"]
+    ] = overlay_semantics(frame_data["CAM_FRONT_RIGHT"])
 
     # Place CAM_BACK_LEFT and CAM_BACK_RIGHT in the fourth row
     layout_image[
         double_row_height + row_height : double_row_height + 2 * row_height,
         :column_width,
-    ] = frame_data["CAM_BACK_LEFT"]["rgb"]
+    ] = overlay_semantics(frame_data["CAM_BACK_LEFT"])
     layout_image[
         double_row_height + row_height : double_row_height + 2 * row_height,
         column_width:,
-    ] = frame_data["CAM_BACK_RIGHT"]["rgb"]
+    ] = overlay_semantics(frame_data["CAM_BACK_RIGHT"])
 
     # Place CAM_BACK at the bottom spanning two rows
     layout_image[double_row_height + 2 * row_height :, :] = cv2.resize(
-        frame_data["CAM_BACK"]["rgb"], (layout_width, double_row_height)
+        overlay_semantics(frame_data["CAM_BACK"]),
+        (layout_width, double_row_height),
     )
 
     return layout_image
@@ -366,6 +487,7 @@ def intrinsic_matrix_array(
 
 
 global nusc
+global scene_index
 global current_sample_token
 global depth_estimator
 global model_mask2former
@@ -373,6 +495,7 @@ global image_processor
 
 
 nusc: Optional[NuScenes] = None
+scene_index: int = 0
 current_sample_token: Optional[str] = None
 depth_estimator: Optional[AutoModelForDepthEstimation] = None
 model_mask2former: Optional[Mask2FormerForUniversalSegmentation] = None
@@ -390,6 +513,7 @@ def main():  # pragma: no cover
     from socc_plotter.plotter import Plotter
 
     global nusc
+    global scene_index
     global current_sample_token
     global depth_estimator
     global model_mask2former, image_processor
@@ -398,7 +522,8 @@ def main():  # pragma: no cover
     # Dataset
     dataroot = os.path.abspath("./data/nuscenes")
     nusc = NuScenes(version="v1.0-mini", dataroot=dataroot, verbose=True)
-    scene = nusc.scene[0]
+    scene_index = 0
+    scene = nusc.scene[scene_index]
 
     sensors = [
         "CAM_FRONT",
@@ -440,11 +565,11 @@ def main():  # pragma: no cover
     #########################################################
     # Semantics
     model_mask2former = Mask2FormerForUniversalSegmentation.from_pretrained(
-        "facebook/mask2former-swin-large-ade-semantic",
+        "facebook/mask2former-swin-large-cityscapes-semantic",
         device_map=device,
     )
     image_processor = AutoImageProcessor.from_pretrained(
-        "facebook/mask2former-swin-large-ade-semantic",
+        "facebook/mask2former-swin-large-cityscapes-semantic",
         device=device,
     )
     #########################################################
@@ -453,6 +578,7 @@ def main():  # pragma: no cover
 
     def loop(plot: Plotter):
         global nusc
+        global scene_index
         global current_sample_token
         global depth_estimator
         global model_mask2former, image_processor
@@ -460,6 +586,10 @@ def main():  # pragma: no cover
         try:
             sample = nusc.get("sample", current_sample_token)
         except KeyError:
+            scene_index += 1
+            if scene_index >= len(nusc.scene):
+                exit()
+            scene = nusc.scene[scene_index]
             current_sample_token = cast(str, scene["first_sample_token"])
             sample = nusc.get("sample", current_sample_token)
 
@@ -477,62 +607,71 @@ def main():  # pragma: no cover
             image_processor,
         )
 
-        img = get_2D_visual(frame_data)
-        plot.set_2D_visual(img)
-
-        # socc = frame_data["socc"]
-        # all_points, all_colors = socc
-
-        all_points_l = []
-        all_colors_l = []
-        colormap = socc_label_colormap()
-
-        # for sensor in list(frame_data.keys())[:1]:
-        for sensor in sensors[:1]:
-            depth = frame_data[sensor]["depth"]
-            semantics = frame_data[sensor]["semantics"]
-            semantics_rgb = semantic_to_rgb(semantics, colormap)
-
-            socc = get_socc(depth, semantics_rgb)
-
-            points = socc[0]
-            ones_column = np.ones((points.shape[0], 1))
-            points = np.hstack((points, ones_column))
-            # points_rot = (
-            #     calibration_data[sensor] @ points.T
-            # ).T
-            points_rot = points @ calibration_data[sensor]
-            points_rot = points_rot[:, :3]
-
-            all_points_l.append(points_rot)
-            all_colors_l.append(socc[1])
-
-        all_points: np.ndarray = np.concatenate(all_points_l, axis=0)
-        all_colors: np.ndarray = np.concatenate(all_colors_l, axis=0)
-
-        invalid_points = (
-            np.isnan(all_points[:, 0])
-            | np.isnan(all_points[:, 1])
-            | np.isnan(all_points[:, 2])
-        ) | (
-            np.isinf(all_points[:, 0])
-            | np.isinf(all_points[:, 1])
-            | np.isinf(all_points[:, 2])
+        trajectory = get_future_vehicle_trajectory(
+            nusc, cast(str, current_sample_token)
         )
 
-        all_points = all_points[~invalid_points]
-        all_colors = all_colors[~invalid_points]
+        img = get_2D_visual(frame_data, trajectory)
+        plot.set_2D_visual(img)
+
+        socc = frame_data["socc"]
+        all_points, all_colors = socc
+
+        # all_points_l = []
+        # all_colors_l = []
+        # colormap = create_cityscapes_label_colormap()
+
+        # # for sensor in list(frame_data.keys())[:1]:
+        # for sensor in sensors[:1]:
+        #     # for sensor in [sensors[i] for i in [0, 1, 5]]:
+        #     # for sensor in [
+        #     #     "CAM_FRONT",
+        #     #     "CAM_FRONT_RIGHT",
+        #     #     "CAM_FRONT_LEFT",
+        #     # ]:
+        #     depth = frame_data[sensor]["depth"]
+        #     semantics = frame_data[sensor]["semantics"]
+        #     semantics_rgb = semantic_to_rgb(semantics, colormap)
+
+        #     socc = get_socc(depth, semantics_rgb)
+
+        #     points = socc[0]
+        #     ones_column = np.ones((points.shape[0], 1))
+        #     points = np.hstack((points, ones_column))
+        #     # points_rot = (
+        #     #     calibration_data[sensor] @ points.T
+        #     # ).T
+        #     points_rot = points @ calibration_data[sensor]
+        #     points_rot = points_rot[:, :3]
+
+        #     all_points_l.append(points_rot)
+        #     all_colors_l.append(socc[1])
+
+        # all_points: np.ndarray = np.concatenate(all_points_l, axis=0)
+        # all_colors: np.ndarray = np.concatenate(all_colors_l, axis=0)
+
+        # invalid_points = (
+        #     np.isnan(all_points[:, 0])
+        #     | np.isnan(all_points[:, 1])
+        #     | np.isnan(all_points[:, 2])
+        # ) | (
+        #     np.isinf(all_points[:, 0])
+        #     | np.isinf(all_points[:, 1])
+        #     | np.isinf(all_points[:, 2])
+        # )
+
+        # all_points = all_points[~invalid_points]
+        # all_colors = all_colors[~invalid_points]
 
         plot.set_3D_visual(all_points, all_colors)
+        plot.set_3D_trajectory(trajectory, 1.4)
 
         print("all_points", all_points.shape)
 
         current_sample_token = sample["next"]
-        if current_sample_token is None:
-            current_sample_token = cast(str, scene["first_sample_token"])
 
-        plot.sleep(0.3)
-        # plot.sleep(0.01)
+        # plot.sleep(0.3)
+        plot.sleep(0.05)
 
     plotter = Plotter(
         callback=loop,

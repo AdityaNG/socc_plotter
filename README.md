@@ -41,7 +41,7 @@ tar -xf v1.0-mini.tgz
 Install a few dependencies for the demo
 ```
 pip install nuscenes-devkit==1.1.10
-pip install transformers torch torchvision timm pyquaternion accelerate
+pip install transformers torch torchvision timm pyquaternion accelerate general_navigation
 ```
 
 Run the demo
