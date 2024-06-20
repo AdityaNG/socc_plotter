@@ -1,9 +1,11 @@
 from typing import Callable, Tuple
 
+import cv2
 import numpy as np
 import pyqtgraph.opengl as gl
+import qimage2ndarray
 import vedo
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import QtCore, QtGui, QtTest, QtWidgets
 from PyQt5.Qt import Qt
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import QLabel, QVBoxLayout
@@ -122,12 +124,16 @@ class Plotter:
             size=0.10,
             pxMode=False,
         )
-        self.graph_region.rotate(-90, 1, 0, 0)
-        self.graph_region.translate(0, Y_OFFSET, 0)
+        # self.graph_region.rotate(90, 1, 0, 0)
+        self.graph_region.rotate(180, 1, 0, 0)
+        # self.graph_region.rotate(180, 0, 0, 1)
+        # self.graph_region.translate(0, Y_OFFSET, 0)
 
         car = vedo.load("media/car.obj")
-        car_faces = np.array(car.faces())
-        car_vertices = np.array(car.points())
+        # car_faces = np.array(car.faces())
+        # car_vertices = np.array(car.points())
+        car_faces = car.faces()
+        car_vertices = car.points()
         car_colors = np.array(
             [[0.5, 0.5, 0.5, 1] for i in range(len(car_faces))]
         )
@@ -143,7 +149,7 @@ class Plotter:
         )
         self.car_mesh_region.rotate(90, 1, 0, 0)
         self.car_mesh_region.rotate(180, 0, 0, 1)
-        self.car_mesh_region.translate(0, Y_OFFSET, 1.0)
+        # self.car_mesh_region.translate(0, Y_OFFSET, 1.0)
 
         self.window_3D.addItem(self.car_mesh_region)
         # self.window_3D.addItem(self.mesh_region)
@@ -154,9 +160,6 @@ class Plotter:
             pos=QtGui.QVector3D(0, 0, 0),
         )
         ##################################################
-        self.graph_context = dict(
-            mesh_region=self.mesh_region, graph_region=self.graph_region
-        )
 
     def set_callback(self, callback: Callable) -> None:
         self._callback = callback
@@ -165,9 +168,30 @@ class Plotter:
         self,
     ) -> None:
         try:
-            self._callback(self.graph_context)
+            self._callback(self)
         except KeyboardInterrupt:
             exit(0)
+        except Exception:
+            import traceback
+
+            traceback.print_exc()
+            exit(1)
+
+    def set_2D_visual(self, img: np.ndarray):
+        img = cv2.resize(img, (self.screen_width // 2, self.screen_height))
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        qImg = QPixmap(qimage2ndarray.array2qimage(img_rgb))
+        self.image_label.setPixmap(qImg)
+
+    def set_3D_visual(self, points: np.ndarray, colors: np.ndarray) -> None:
+        self.graph_region.setData(
+            pos=points,
+            color=colors,
+        )
+
+    def sleep(self, seconds: float) -> None:
+        msecs = int(seconds * 1000)
+        QtTest.QTest.qWait(msecs)  # type: ignore
 
     def start(self) -> None:
         """
@@ -186,11 +210,10 @@ class Plotter:
 def main():
     import time
 
-    def callback(graph_context):
+    def callback(plot: Plotter):
         time.sleep(1)
-        print("in callback", graph_context)
-        # mesh_region = graph_context["mesh_region"]
-        graph_region = graph_context["graph_region"]
+        print("in callback")
+        graph_region = plot.graph_region
 
         points = np.array([[1, 0, 0]])
         colors = np.array([[1, 1, 1]])

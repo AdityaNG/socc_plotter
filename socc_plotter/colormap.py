@@ -1,6 +1,188 @@
 import numpy as np
 
 
+def socc_label_colormap():
+    """Creates a custom label colormap for visualization.
+
+    Returns:
+        A colormap for visualizing segmentation results.
+    """
+    return np.asarray(
+        [
+            [0, 0, 0],  # wall
+            [0, 0, 0],  # building;edifice
+            [0, 0, 0],  # sky
+            [0, 0, 0],  # floor;flooring
+            [0, 0, 0],  # tree
+            [0, 0, 0],  # ceiling
+            [0, 0, 0],  # road;route
+            [0, 0, 0],  # bed
+            [0, 0, 0],  # windowpane;window
+            [0, 0, 0],  # grass
+            [0, 0, 0],  # cabinet
+            [0, 0, 0],  # sidewalk;pavement
+            [0, 0, 255],  # person;individual;someone;somebody;mortal;soul
+            [0, 0, 0],  # earth;ground
+            [0, 0, 0],  # door;double;door
+            [0, 0, 0],  # table
+            [0, 0, 0],  # mountain;mount
+            [0, 0, 0],  # plant;flora;plant;life
+            [0, 0, 0],  # curtain;drape;drapery;mantle;pall
+            [0, 0, 0],  # chair
+            [255, 0, 0],  # car;auto;automobile;machine;motorcar
+            [0, 0, 0],  # water
+            [0, 0, 0],  # painting;picture
+            [0, 0, 0],  # sofa;couch;lounge
+            [0, 0, 0],  # shelf
+            [0, 0, 0],  # house
+            [0, 0, 0],  # sea
+            [0, 0, 0],  # mirror
+            [0, 0, 0],  # rug;carpet;carpeting
+            [0, 0, 0],  # field
+            [0, 0, 0],  # armchair
+            [0, 0, 0],  # seat
+            [0, 0, 0],  # fence;fencing
+            [0, 0, 0],  # desk
+            [0, 0, 0],  # rock;stone
+            [0, 0, 0],  # wardrobe;closet;press
+            [0, 0, 0],  # lamp
+            [0, 0, 0],  # bathtub;bathing;tub;bath;tub
+            [0, 0, 0],  # railing;rail
+            [0, 0, 0],  # cushion
+            [0, 0, 0],  # base;pedestal;stand
+            [0, 0, 0],  # box
+            [0, 0, 0],  # column;pillar
+            [0, 0, 0],  # signboard;sign
+            [0, 0, 0],  # chest;of;drawers;chest;bureau;dresser
+            [0, 0, 0],  # counter
+            [0, 0, 0],  # sand
+            [0, 0, 0],  # sink
+            [0, 0, 0],  # skyscraper
+            [0, 0, 0],  # fireplace;hearth;open;fireplace
+            [0, 0, 0],  # refrigerator;icebox
+            [0, 0, 0],  # grandstand;covered;stand
+            [0, 0, 0],  # path
+            [0, 0, 0],  # stairs;steps
+            [0, 0, 0],  # runway
+            [0, 0, 0],  # case;display;case;showcase;vitrine
+            [0, 0, 0],  # pool;table;billiard;table;snooker;table
+            [0, 0, 0],  # pillow
+            [0, 0, 0],  # screen;door;screen
+            [0, 0, 0],  # stairway;staircase
+            [0, 0, 0],  # river
+            [0, 0, 0],  # bridge;span
+            [0, 0, 0],  # bookcase
+            [0, 0, 0],  # blind;screen
+            [0, 0, 0],  # coffee;table;cocktail;table
+            [0, 0, 0],  # toilet;can;commode;crapper;pot;potty;stool;throne
+            [0, 0, 0],  # flower
+            [0, 0, 0],  # book
+            [0, 0, 0],  # hill
+            [0, 0, 0],  # bench
+            [0, 0, 0],  # countertop
+            [0, 0, 0],  # stove;kitchen;stove;range;kitchen;range;cooking;stove
+            [0, 0, 0],  # palm;palm;tree
+            [0, 0, 0],  # kitchen;island
+            [
+                0,
+                0,
+                0,
+            ],  # computer;computing;machine;computing
+            [0, 0, 0],  # swivel;chair
+            [255, 0, 0],  # boat
+            [0, 0, 0],  # bar
+            [0, 0, 0],  # arcade;machine
+            [0, 0, 0],  # hovel;hut;hutch;shack;shanty
+            [
+                255,
+                0,
+                0,
+            ],  # bus;autobus;coach;charabanc;double-decker
+            [0, 0, 0],  # towel
+            [0, 0, 0],  # light;light;source
+            [255, 0, 0],  # truck;motortruck
+            [0, 0, 0],  # tower
+            [0, 0, 0],  # chandelier;pendant;pendent
+            [0, 0, 0],  # awning;sunshade;sunblind
+            [0, 0, 0],  # streetlight;street;lamp
+            [0, 0, 0],  # booth;cubicle;stall;kiosk
+            [
+                0,
+                0,
+                0,
+            ],  # television;television;receiver;television;
+            [0, 0, 0],  # airplane;aeroplane;plane
+            [0, 0, 0],  # dirt;track
+            [0, 0, 0],  # apparel;wearing;apparel;dress;clothes
+            [0, 0, 0],  # pole
+            [0, 0, 0],  # land;ground;soil
+            [0, 0, 0],  # bannister;banister;balustrade;balusters;handrail
+            [0, 0, 0],  # escalator;moving;staircase;moving;stairway
+            [0, 0, 0],  # ottoman;pouf;pouffe;puff;hassock
+            [0, 0, 0],  # bottle
+            [0, 0, 0],  # buffet;counter;sideboard
+            [0, 0, 0],  # poster;posting;placard;notice;bill;card
+            [0, 0, 0],  # stage
+            [255, 0, 0],  # van
+            [255, 0, 0],  # ship
+            [0, 0, 0],  # fountain
+            [
+                0,
+                0,
+                0,
+            ],  # conveyer;belt;conveyor;belt;conveyer;conveyor;transporter
+            [0, 0, 0],  # canopy
+            [0, 0, 0],  # washer;automatic;washer;washing;machine
+            [0, 0, 0],  # plaything;toy
+            [0, 0, 0],  # swimming;pool;swimming;bath;natatorium
+            [0, 0, 0],  # stool
+            [0, 0, 0],  # barrel;cask
+            [0, 0, 0],  # basket;handbasket
+            [0, 0, 0],  # waterfall;falls
+            [0, 0, 0],  # tent;collapsible;shelter
+            [0, 0, 0],  # bag
+            [0, 0, 0],  # minibike;motorbike
+            [0, 0, 0],  # cradle
+            [0, 0, 0],  # oven
+            [0, 0, 0],  # ball
+            [0, 0, 0],  # food;solid;food
+            [0, 0, 0],  # step;stair
+            [0, 0, 0],  # tank;storage;tank
+            [0, 0, 0],  # trade;name;brand;name;brand;marque
+            [0, 0, 0],  # microwave;microwave;oven
+            [0, 0, 0],  # pot;flowerpot
+            [0, 0, 0],  # animal;animate;being;beast;brute;creature;fauna
+            [255, 0, 255],  # bicycle;bike;wheel;cycle
+            [0, 0, 0],  # lake
+            [0, 0, 0],  # dishwasher;dish;washer;dishwashing;machine
+            [0, 0, 0],  # screen;silver;screen;projection;screen
+            [0, 0, 0],  # blanket;cover
+            [0, 0, 0],  # sculpture
+            [0, 0, 0],  # hood;exhaust;hood
+            [0, 0, 0],  # sconce
+            [0, 0, 0],  # vase
+            (8, 122, 255),  # traffic;light;traffic;signal;stoplight
+            [0, 0, 0],  # tray
+            [
+                0,
+                0,
+                0,
+            ],  # ashcan;trash;can;garbage;can;wastebin;ash;bin;ash-bin;
+            [0, 0, 0],  # fan
+            [0, 0, 0],  # pier;wharf;wharfage;dock
+            [0, 0, 0],  # crt;screen
+            [0, 0, 0],  # plate
+            [0, 0, 0],  # monitor;monitoring;device
+            [0, 0, 0],  # bulletin;board;notice;board
+            [0, 0, 0],  # shower
+            [0, 0, 0],  # radiator
+            [0, 0, 0],  # glass;drinking;glass
+            [0, 0, 0],  # clock
+            [0, 0, 0],  # flag
+        ]
+    )
+
+
 def create_ade20k_label_colormap():
     """Creates a label colormap used in ADE20K segmentation benchmark.
 
@@ -9,7 +191,7 @@ def create_ade20k_label_colormap():
     """
     return np.asarray(
         [
-            [0, 0, 0],
+            [50, 50, 50],
             [120, 120, 120],
             [180, 120, 120],
             [6, 230, 230],

@@ -32,7 +32,7 @@ fmt:              ## Format code using black & isort.
 
 .PHONY: lint
 lint:             ## Run pep8, black, mypy linters.
-	$(ENV_PREFIX)flake8 socc_plotter/
+	$(ENV_PREFIX)flake8 --per-file-ignores="socc_plotter/*.py:E203" socc_plotter/
 	$(ENV_PREFIX)black -l 79 --check socc_plotter/
 	$(ENV_PREFIX)black -l 79 --check tests/
 	$(ENV_PREFIX)mypy --ignore-missing-imports socc_plotter/

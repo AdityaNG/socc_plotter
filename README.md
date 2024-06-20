@@ -41,7 +41,7 @@ tar -xf v1.0-mini.tgz
 Install a few dependencies for the demo
 ```
 pip install nuscenes-devkit==1.1.10
-pip install transformers torch torchvision timm
+pip install transformers torch torchvision timm pyquaternion accelerate
 ```
 
 Run the demo
@@ -55,6 +55,20 @@ $ socc_plotter
 
 Read the [CONTRIBUTING.md](CONTRIBUTING.md) file.
 
+## Cite
+
+Cite our work if you find it useful
+
+```bibtex
+@article{NG2024SOccDPT,
+  title={SOccDPT: 3D Semantic Occupancy from Dense Prediction Transformers trained under memory constraints},
+  author={NG, Aditya},
+  journal={Advances in Artificial Intelligence and Machine Learning},
+  volume={ISSN: 2582-9793, Source Id: 21101164612},
+  year={2024},
+  url={https://www.oajaiml.com/}
+}
+``` 
 
 ## TODO
 
