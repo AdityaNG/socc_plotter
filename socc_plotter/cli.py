@@ -15,13 +15,11 @@ from transformers import (
     Mask2FormerForUniversalSegmentation,
 )
 
-from .colormap import create_cityscapes_label_colormap
-from .socc import get_socc
+from .socc import get_multicam_socc
 from .socc_helper import (
     get_2D_visual,
     get_future_vehicle_trajectory,
     infer_semantics_and_depth,
-    semantic_to_rgb,
 )
 from .transforms import quart_to_transformation_matrix
 
@@ -88,7 +86,8 @@ def main():  # pragma: no cover
         if channel in sensors:
             translation = calibration["translation"]
             rotation = calibration["rotation"]
-            print(f"rotation[{sensor}]", rotation)
+            print(f"rotation[{channel}]", rotation)
+            print(f"translation[{channel}]", translation)
             calibration_data[channel] = quart_to_transformation_matrix(
                 rotation,
                 translation,
@@ -104,6 +103,8 @@ def main():  # pragma: no cover
         global scene_index
         global current_sample_token
 
+        recompute_socc = True
+
         # global depth_estimator
         # global model_mask2former, image_processor
 
@@ -112,6 +113,7 @@ def main():  # pragma: no cover
             if torch.cuda.is_available()
             else torch.device("cpu")
         )
+        print("device", device)
         #########################################################
         # Depth
         # DepthAnything
@@ -136,6 +138,7 @@ def main():  # pragma: no cover
             device=device,
         )
         #########################################################
+        print("Done loading models")
 
         while True:
             try:
@@ -143,7 +146,7 @@ def main():  # pragma: no cover
             except KeyError:
                 scene_index += 1
                 if scene_index >= len(nusc.scene):
-                    exit()
+                    break
                 scene = nusc.scene[scene_index]
                 current_sample_token = cast(str, scene["first_sample_token"])
                 sample = nusc.get("sample", current_sample_token)
@@ -168,62 +171,20 @@ def main():  # pragma: no cover
                 nusc, cast(str, current_sample_token)
             )
 
-            all_points_l = []
-            all_colors_l = []
-            colormap = create_cityscapes_label_colormap()
+            if recompute_socc:
 
-            # for sensor in list(frame_data.keys())[:1]:
-            for sensor in sensors[:1]:
-                # for sensor in [sensors[i] for i in [0, 1, 5]]:
-                # for sensor in [
-                #     "CAM_FRONT",
-                #     "CAM_FRONT_RIGHT",
-                #     "CAM_FRONT_LEFT",
-                # ]:
-                depth = frame_data[sensor]["depth"]
-                semantics = frame_data[sensor]["semantics"]
-                semantics_rgb = semantic_to_rgb(semantics, colormap)
-
-                socc = get_socc(depth, semantics_rgb)
-
-                points = socc[0]
-                ones_column = np.ones((points.shape[0], 1))
-                points = np.hstack((points, ones_column))
-                # points_rot = (
-                #     calibration_data[sensor] @ points.T
-                # ).T
-                # points_rot = points @ calibration_data[sensor]
-                points_rot = points @ np.linalg.inv(calibration_data[sensor])
-                # points_rot = (
-                #     np.linalg.inv(calibration_data[sensor]) @ points.T
-                # ).T
-                points_rot = points_rot[:, :3]
-
-                all_points_l.append(points_rot)
-                all_colors_l.append(socc[1])
-
-            all_points: np.ndarray = np.concatenate(all_points_l, axis=0)
-            all_colors: np.ndarray = np.concatenate(all_colors_l, axis=0)
-
-            invalid_points = (
-                np.isnan(all_points[:, 0])
-                | np.isnan(all_points[:, 1])
-                | np.isnan(all_points[:, 2])
-            ) | (
-                np.isinf(all_points[:, 0])
-                | np.isinf(all_points[:, 1])
-                | np.isinf(all_points[:, 2])
-            )
-
-            all_points = all_points[~invalid_points]
-            all_colors = all_colors[~invalid_points]
-
-            frame_socc = (all_points, all_colors)
+                frame_socc = get_multicam_socc(
+                    sensors[:2],
+                    frame_data,
+                    calibration_data,
+                )
+            else:
+                frame_socc = frame_data["socc"]
 
             current_sample_token = sample["next"]
             torch.cuda.empty_cache()
 
-    loop()
+    # loop()
 
     def ui_loop(plot: Plotter):
         global frame_socc

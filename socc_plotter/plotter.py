@@ -157,8 +157,10 @@ class Plotter:
         car = vedo.load("media/car.obj")
         # car_faces = np.array(car.faces())
         # car_vertices = np.array(car.points())
-        car_faces = car.faces()
-        car_vertices = car.points()
+        # car_faces = car.faces()
+        # car_vertices = car.points()
+        car_faces = car.cells
+        car_vertices = car.vertices
         car_colors = np.array(
             [[0.5, 0.5, 0.5, 1] for i in range(len(car_faces))]
         )
@@ -247,14 +249,19 @@ class Plotter:
         )
         colors_with_alpha[blanks] = (0.5, 0.5, 0.5, 0.2)
 
-        # # x, y, z = -y, -z, x
+        # x, y, z = -y, -z, x
+        # points[:, 0], points[:, 1], points[:, 2] = (
+        #     -points[:, 1].copy(),
+        #     -points[:, 2].copy(),
+        #     points[:, 0].copy(),
+        # )
+
+        # points = points[:, [1, 2, 0]]
         points[:, 0], points[:, 1], points[:, 2] = (
             -points[:, 1].copy(),
-            -points[:, 2].copy(),
+            points[:, 2].copy(),
             points[:, 0].copy(),
         )
-
-        points = points[:, [0, 2, 1]]
 
         self.graph_region.setData(
             pos=points,

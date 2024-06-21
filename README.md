@@ -79,15 +79,15 @@ Cite our work if you find it useful
 
 ## TODO
 
-- [] Demo
+- [ ] Demo
     - [x] RGB Frame
     - [x] Depth perception
     - [x] Semantic segmentation
     - [] NuScenes Calibration
     - [x] NuScenes Vehicle trajectory
     - [x] Semantic Occupancy Grid
-- [] Ensure demo dependencies are seperate from the module
-- [] Demo is to prompt the user to install dependencies
-- [] Demo is to auto download NuScenes and unarchive it
-- [] Test Cases
-- [] PiPy deployment
+- [ ] Ensure demo dependencies are seperate from the module
+- [ ] Demo is to prompt the user to install dependencies
+- [ ] Demo is to auto download NuScenes and unarchive it
+- [ ] Test Cases
+- [ ] PiPy deployment

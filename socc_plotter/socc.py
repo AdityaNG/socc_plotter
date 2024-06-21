@@ -1,7 +1,8 @@
-from typing import Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
+from .colormap import create_cityscapes_label_colormap
 from .occupancy_grid import uniform_density_colorwise
 from .transforms import estimate_intrinsics
 
@@ -15,7 +16,7 @@ def get_socc(
     mask: Optional[np.ndarray] = None,
     fov_x: float = 70,  # degrees
     fov_y: float = 70,  # degrees
-):
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Takes depth and semantics as input and produces 3D semantic occupancy
     """
@@ -67,11 +68,83 @@ def get_socc(
 
     points, colors = uniform_density_colorwise(points, colors, 0.2, 1)
 
-    # x, y, z = z, -x, -y
+    # # x, y, z = z, -x, -y
+    # points[:, 0], points[:, 1], points[:, 2] = (
+    #     points[:, 2].copy(),
+    #     -points[:, 0].copy(),
+    #     -points[:, 1].copy(),
+    # )
+    # points = points[:, [0, 1, 2]]
+    points = points[:, [0, 2, 1]]  # seems promising
+    # points = points[:, [1, 0, 2]]
+    # points = points[:, [1, 2, 0]]
+    # points = points[:, [2, 0, 1]]  # seems promising
+    # points = points[:, [2, 1, 0]]
+
     points[:, 0], points[:, 1], points[:, 2] = (
-        points[:, 2].copy(),
+        -points[:, 2].copy(),
         -points[:, 0].copy(),
-        -points[:, 1].copy(),
+        points[:, 1].copy(),
     )
 
     return (points, colors)
+
+
+def get_multicam_socc(
+    sensors: List[str],
+    frame_data: Dict,
+    calibration_data: Dict,
+) -> Tuple[np.ndarray, np.ndarray]:
+    all_points_l = []
+    all_colors_l = []
+    colormap = create_cityscapes_label_colormap()
+
+    for sensor in sensors:
+        depth = frame_data[sensor]["depth"]
+        semantics = frame_data[sensor]["semantics"]
+        semantics_rgb = semantic_to_rgb(semantics, colormap)
+
+        socc = get_socc(depth, semantics_rgb)
+
+        points = socc[0]
+        ones_column = np.ones((points.shape[0], 1))
+        points = np.hstack((points, ones_column))
+        points_rot = points.copy()
+        # points_rot = points @ calibration_data[sensor]
+        points_rot = (calibration_data[sensor] @ points.T).T
+        # points_rot = (np.linalg.inv(calibration_data[sensor]) @ points.T).T
+        # points_rot = points @ np.linalg.inv(calibration_data[sensor])
+        points_rot = points_rot[:, :3]
+
+        all_points_l.append(points_rot)
+        all_colors_l.append(socc[1])
+
+    all_points: np.ndarray = np.concatenate(all_points_l, axis=0)
+    all_colors: np.ndarray = np.concatenate(all_colors_l, axis=0)
+
+    invalid_points = (
+        np.isnan(all_points[:, 0])
+        | np.isnan(all_points[:, 1])
+        | np.isnan(all_points[:, 2])
+    ) | (
+        np.isinf(all_points[:, 0])
+        | np.isinf(all_points[:, 1])
+        | np.isinf(all_points[:, 2])
+    )
+
+    all_points = all_points[~invalid_points]
+    all_colors = all_colors[~invalid_points]
+
+    frame_socc = (all_points, all_colors)
+
+    return frame_socc
+
+
+def semantic_to_rgb(
+    pred_semantic_map: np.ndarray,
+    palette: np.ndarray = create_cityscapes_label_colormap(),
+) -> np.ndarray:
+    # Convert segmentation map to color map
+    color_map = palette[pred_semantic_map]
+
+    return color_map

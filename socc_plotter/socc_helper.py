@@ -19,7 +19,7 @@ from transformers import (
 )
 
 from .colormap import create_cityscapes_label_colormap
-from .socc import get_socc
+from .socc import get_multicam_socc, get_socc, semantic_to_rgb
 from .transforms import create_transformation_matrix
 
 
@@ -84,15 +84,6 @@ def depth_to_rgb(depth_map):
     )
 
     return color_mapped_image
-
-
-def semantic_to_rgb(
-    pred_semantic_map, palette=create_cityscapes_label_colormap()
-):
-    # Convert segmentation map to color map
-    color_map = palette[pred_semantic_map]
-
-    return color_map
 
 
 def infer_semantics_and_depth(
@@ -189,46 +180,11 @@ def infer_semantics_and_depth(
                 "socc": socc,
             }
 
-        all_points_l = []
-        all_colors_l = []
-        # for sensor in list(frame_data.keys())[:1]:
-        for sensor in frame_data:
-            # depth = frame_data[sensor]["depth"]
-            # semantics = frame_data[sensor]["semantics"]
-            # semantics_rgb = semantic_to_rgb(semantics, colormap)
-            socc = frame_data[sensor]["socc"]
-
-            points = socc[0]
-            ones_column = np.ones((points.shape[0], 1))
-            points = np.hstack((points, ones_column))
-            # points_rot = (
-            #     calibration_data[sensor] @ points.T
-            # ).T
-            # points_rot = points @ calibration_data[sensor]
-            # points_rot = points @ np.linalg.inv(calibration_data[sensor])
-            points_rot = (np.linalg.inv(calibration_data[sensor]) @ points.T).T
-            points_rot = points_rot[:, :3]
-
-            all_points_l.append(points_rot)
-            all_colors_l.append(socc[1])
-
-        all_points: np.ndarray = np.concatenate(all_points_l, axis=0)
-        all_colors: np.ndarray = np.concatenate(all_colors_l, axis=0)
-
-        invalid_points = (
-            np.isnan(all_points[:, 0])
-            | np.isnan(all_points[:, 1])
-            | np.isnan(all_points[:, 2])
-        ) | (
-            np.isinf(all_points[:, 0])
-            | np.isinf(all_points[:, 1])
-            | np.isinf(all_points[:, 2])
-        )
-
-        all_points = all_points[~invalid_points]
-        all_colors = all_colors[~invalid_points]
-
-        frame_data["socc"] = (all_points, all_colors)  # type: ignore
+        frame_data["socc"] = get_multicam_socc(
+            sensors,
+            frame_data,
+            calibration_data,
+        )  # type: ignore
         # Save frame_data
         with open(cache_pkl_path, "wb") as handle:
             pickle.dump(frame_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
