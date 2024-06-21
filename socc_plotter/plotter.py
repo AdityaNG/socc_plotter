@@ -1,4 +1,6 @@
-from typing import Callable, Tuple
+import time
+import warnings
+from typing import Callable, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -18,21 +20,38 @@ from .window3d import Window3D
 Y_OFFSET = -25
 
 
+class Worker(QtCore.QThread):
+    def __init__(self, compute_callback, parent=None):
+        super().__init__(parent)
+        self._compute_callback = compute_callback
+
+    def run(self):
+        while True:
+            self._compute_callback()
+            # Sleep for a short time
+            self.msleep(1)
+
+
 class Plotter:
 
     screen_width: int
     screen_height: int
     screen_origin: Tuple[int, int]
-    _callback: Callable
+    _ui_callback: Callable
+    _compute_callback: Optional[Callable] = None
 
-    def __init__(self, callback: Callable):
+    def __init__(
+        self, ui_callback: Callable, compute_callback=Optional[Callable]
+    ):
         """
         Semantic Occupancy Plotter
         """
 
         # TODO: preemptive check to ensure opencv-python-headless is installed
 
-        self.set_callback(callback)
+        self.set_ui_callback(ui_callback)
+        if compute_callback is not None:
+            self.set_compute_callback(compute_callback)
 
         self.app = QtWidgets.QApplication([])
         self.desktop = QtWidgets.QApplication.desktop()
@@ -179,14 +198,27 @@ class Plotter:
             faceColors=np.array(mesh_data["faceColors"], dtype=np.float32),
         )
 
-    def set_callback(self, callback: Callable) -> None:
-        self._callback = callback
+    def set_ui_callback(self, callback: Callable) -> None:
+        self._ui_callback = callback
+
+    def set_compute_callback(self, callback: Callable) -> None:
+        self._compute_callback = callback
 
     def update_graph(
         self,
     ) -> None:
         try:
-            self._callback(self)
+            start_time = time.time()
+            self._ui_callback(self)
+            end_time = time.time()
+            duration = end_time - start_time + 10**-6
+            fps = 1.0 / duration
+
+            if fps < 5:
+                warnings.warn(
+                    "The UI update callback is taking too long to run"
+                    + "Consider moving logic to `compute_callback`"
+                )
         except KeyboardInterrupt:
             exit(0)
         except Exception:
@@ -237,6 +269,9 @@ class Plotter:
         """
         Blocking call to start UI thread
         """
+        np.seterr(all="ignore")
+        warnings.filterwarnings("ignore")
+
         self.window_3D.show()
         self.window_2D.show()
 
@@ -244,6 +279,12 @@ class Plotter:
         timer.timeout.connect(self.update_graph)
         timer.start(1)
 
+        if self._compute_callback is not None:
+            # Create and start the worker thread for the compute loop
+            self.worker = Worker(self._compute_callback)
+            self.worker.start()
+
+        # start the GUI
         QtGui.QGuiApplication.instance().exec_()  # type: ignore
 
 

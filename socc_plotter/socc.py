@@ -13,6 +13,8 @@ def get_socc(
     intrinsics: Optional[np.ndarray] = None,
     subsample: int = 30,
     mask: Optional[np.ndarray] = None,
+    fov_x: float = 70,  # degrees
+    fov_y: float = 70,  # degrees
 ):
     """
     Takes depth and semantics as input and produces 3D semantic occupancy
@@ -21,15 +23,14 @@ def get_socc(
     HEIGHT, WIDTH = disparity.shape
 
     if intrinsics is None:
-        intrinsics = estimate_intrinsics(70, 70, HEIGHT, WIDTH)
+        intrinsics = estimate_intrinsics(fov_x, fov_y, HEIGHT, WIDTH)
 
     fx = intrinsics[0, 0]
     fy = intrinsics[1, 1]
     cx = intrinsics[0, 2]
     cy = intrinsics[1, 2]
     focal_length = (fx + fy) / 2.0
-    print("focal_length", focal_length)
-    baseline = 1.0
+    baseline = 1.5
     points = np.zeros((HEIGHT, WIDTH, 3), dtype=np.float32)
 
     if mask is None:
@@ -64,7 +65,7 @@ def get_socc(
 
     points = points.clip(-80, 80)
 
-    points, colors = uniform_density_colorwise(points, colors, 0.15, 1)
+    points, colors = uniform_density_colorwise(points, colors, 0.2, 1)
 
     # x, y, z = z, -x, -y
     points[:, 0], points[:, 1], points[:, 2] = (
