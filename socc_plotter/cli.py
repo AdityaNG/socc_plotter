@@ -5,7 +5,7 @@ Demo to run on NuScenes Mini
 
 import os
 import pickle
-from typing import Callable, Dict, List, Optional, Tuple, cast
+from typing import Callable, Dict, List, Optional, cast
 
 import cv2
 import numpy as np
@@ -13,7 +13,6 @@ import torch
 from general_navigation.models.model_utils import plot_steering_traj
 from nuscenes.nuscenes import NuScenes
 from PIL import Image
-from pyquaternion import Quaternion
 from transformers import (
     AutoImageProcessor,
     AutoModelForDepthEstimation,
@@ -21,32 +20,11 @@ from transformers import (
 )
 
 from .colormap import create_cityscapes_label_colormap
-from .occupancy_grid import uniform_density_colorwise
-
-
-def create_transformation_matrix(
-    pos: Tuple[float, float, float], rot: Tuple[float, float, float, float]
-) -> np.ndarray:
-    """
-    Creates a 4x4 transformation matrix from position and rotation.
-
-    :param pos: List or array of three position coordinates [x, y, z].
-    :param rot: List or array of four quaternion components [qw, qx, qy, qz].
-    :return: A 4x4 transformation matrix.
-    """
-    # Convert rotation to a Quaternion object
-    quat = Quaternion(rot)
-
-    # Create a 4x4 identity matrix
-    transformation_matrix = np.eye(4)
-
-    # Set the rotation part (3x3 matrix)
-    transformation_matrix[:3, :3] = quat.rotation_matrix
-
-    # Set the translation part
-    transformation_matrix[:3, 3] = pos
-
-    return transformation_matrix
+from .socc import get_socc
+from .transforms import (
+    create_transformation_matrix,
+    quart_to_transformation_matrix,
+)
 
 
 def get_future_vehicle_trajectory(
@@ -92,10 +70,6 @@ def get_future_vehicle_trajectory(
     return vehicle_trajectory_xy
 
 
-def new_func():
-    exit()
-
-
 def depth_to_rgb(depth_map):
     depth_min, depth_max = np.min(depth_map), np.max(depth_map)
     if depth_max > depth_min:  # Avoid division by zero
@@ -123,114 +97,6 @@ def semantic_to_rgb(
     color_map = palette[pred_semantic_map]
 
     return color_map
-
-
-def estimate_intrinsics(
-    fov_x: float,  # degrees
-    fov_y: float,  # degrees
-    height: int,  # pixels
-    width: int,  # pixels
-) -> np.ndarray:
-    """
-    The intrinsic matrix can be extimated from the FOV and image dimensions
-
-    :param fov_x: FOV on x axis in degrees
-    :type fov_x: float
-    :param fov_y: FOV on y axis in degrees
-    :type fov_y: float
-    :param height: Height in pixels
-    :type height: focal
-    :param width: Width in pixels
-    :type width: int
-    :returns: (3,3) intrinsic matrix
-    """
-    fov_x = np.deg2rad(fov_x)
-    fov_y = np.deg2rad(fov_y)
-    c_x = width / 2.0
-    c_y = height / 2.0
-    f_x = c_x / np.tan(fov_x / 2.0)
-    f_y = c_y / np.tan(fov_y / 2.0)
-
-    intrinsic_matrix = np.array(
-        [
-            [f_x, 0, c_x],
-            [0, f_y, c_y],
-            [0, 0, 1],
-        ],
-        dtype=np.float16,
-    )
-
-    return intrinsic_matrix
-
-
-def get_socc(
-    disparity: np.ndarray,
-    semantics: np.ndarray,
-    scale: Tuple[float, float, float] = (1, 1, -1),
-    intrinsics: Optional[np.ndarray] = None,
-    subsample: int = 30,
-    mask: Optional[np.ndarray] = None,
-):
-    """
-    Takes depth and semantics as input and produces 3D semantic occupancy
-    """
-
-    HEIGHT, WIDTH = disparity.shape
-
-    if intrinsics is None:
-        intrinsics = estimate_intrinsics(70, 70, HEIGHT, WIDTH)
-
-    fx = intrinsics[0, 0]
-    fy = intrinsics[1, 1]
-    cx = intrinsics[0, 2]
-    cy = intrinsics[1, 2]
-    focal_length = (fx + fy) / 2.0
-    print("focal_length", focal_length)
-    baseline = 1.0
-    points = np.zeros((HEIGHT, WIDTH, 3), dtype=np.float32)
-
-    if mask is None:
-        # default to bottom half of image
-        mask = np.zeros((HEIGHT, WIDTH), dtype=bool)
-        mask[HEIGHT // 2 :, :] = 1
-        # mask[:, WIDTH//2:] = 1
-
-    disparity[~mask] = -1.0
-    depth = focal_length * baseline * np.reciprocal(disparity)
-
-    U, V = np.ix_(
-        np.arange(HEIGHT), np.arange(WIDTH)
-    )  # pylint: disable=unbalanced-tuple-unpacking
-    Z = depth.copy()
-
-    X = (V - cx) * Z / fx
-    Y = (U - cy) * Z / fy
-
-    points[:, :, 0] = X * scale[0]
-    points[:, :, 1] = Y * scale[1]
-    points[:, :, 2] = Z * scale[2]
-
-    colors = semantics / 255.0
-
-    # points = points[mask]
-    # colors = colors[mask]
-
-    # points = points.reshape(HEIGHT * WIDTH, 3)
-    # colors = colors.reshape(HEIGHT * WIDTH, 3)
-    points = points.reshape(-1, 3)
-    colors = colors.reshape(-1, 3)
-
-    # subsample
-    points = points[::subsample, :]
-    colors = colors[::subsample, :]
-
-    points = points[:, [0, 2, 1]]
-
-    points = points.clip(-80, 80)
-
-    points, colors = uniform_density_colorwise(points, colors, 0.15, 1)
-
-    return (points, colors)
 
 
 def infer_semantics_and_depth(
@@ -343,7 +209,9 @@ def infer_semantics_and_depth(
             # points_rot = (
             #     calibration_data[sensor] @ points.T
             # ).T
-            points_rot = points @ calibration_data[sensor]
+            # points_rot = points @ calibration_data[sensor]
+            # points_rot = points @ np.linalg.inv(calibration_data[sensor])
+            points_rot = (np.linalg.inv(calibration_data[sensor]) @ points.T).T
             points_rot = points_rot[:, :3]
 
             all_points_l.append(points_rot)
@@ -455,37 +323,6 @@ def get_2D_visual(frame_data: Dict, trajectory: np.ndarray):
     return layout_image
 
 
-def transformation_matrix(
-    quaternion: List[float], translation: Tuple[float, float, float]
-) -> np.ndarray:
-    # Create a Quaternion object from the list
-    q = Quaternion(quaternion)
-
-    # Convert quaternion to a 3x3 rotation matrix
-    R = q.rotation_matrix
-
-    # Create the 4x4 transformation matrix
-    T = np.eye(4)
-    T[0:3, 0:3] = R
-    T[0:3, 3] = translation
-
-    return T
-
-
-def intrinsic_matrix_array(
-    f_x: float, f_y: float, c_x: float, c_y: float
-) -> np.ndarray:
-    intrinsic_matrix = np.array(
-        [
-            [f_x, 0, c_x],
-            [0, f_y, c_y],
-            [0, 0, 1],
-        ],
-        dtype=np.float16,
-    )
-    return intrinsic_matrix
-
-
 global nusc
 global scene_index
 global current_sample_token
@@ -541,8 +378,8 @@ def main():  # pragma: no cover
         if channel in sensors:
             translation = calibration["translation"]
             rotation = calibration["rotation"]
-            print("rotation", rotation)
-            calibration_data[channel] = transformation_matrix(
+            print(f"rotation[{sensor}]", rotation)
+            calibration_data[channel] = quart_to_transformation_matrix(
                 rotation,
                 translation,
             )
@@ -614,54 +451,58 @@ def main():  # pragma: no cover
         img = get_2D_visual(frame_data, trajectory)
         plot.set_2D_visual(img)
 
-        socc = frame_data["socc"]
-        all_points, all_colors = socc
+        # socc = frame_data["socc"]
+        # all_points, all_colors = socc
 
-        # all_points_l = []
-        # all_colors_l = []
-        # colormap = create_cityscapes_label_colormap()
+        all_points_l = []
+        all_colors_l = []
+        colormap = create_cityscapes_label_colormap()
 
-        # # for sensor in list(frame_data.keys())[:1]:
-        # for sensor in sensors[:1]:
-        #     # for sensor in [sensors[i] for i in [0, 1, 5]]:
-        #     # for sensor in [
-        #     #     "CAM_FRONT",
-        #     #     "CAM_FRONT_RIGHT",
-        #     #     "CAM_FRONT_LEFT",
-        #     # ]:
-        #     depth = frame_data[sensor]["depth"]
-        #     semantics = frame_data[sensor]["semantics"]
-        #     semantics_rgb = semantic_to_rgb(semantics, colormap)
+        # for sensor in list(frame_data.keys())[:1]:
+        for sensor in sensors[:2]:
+            # for sensor in [sensors[i] for i in [0, 1, 5]]:
+            # for sensor in [
+            #     "CAM_FRONT",
+            #     "CAM_FRONT_RIGHT",
+            #     "CAM_FRONT_LEFT",
+            # ]:
+            depth = frame_data[sensor]["depth"]
+            semantics = frame_data[sensor]["semantics"]
+            semantics_rgb = semantic_to_rgb(semantics, colormap)
 
-        #     socc = get_socc(depth, semantics_rgb)
+            socc = get_socc(depth, semantics_rgb)
 
-        #     points = socc[0]
-        #     ones_column = np.ones((points.shape[0], 1))
-        #     points = np.hstack((points, ones_column))
-        #     # points_rot = (
-        #     #     calibration_data[sensor] @ points.T
-        #     # ).T
-        #     points_rot = points @ calibration_data[sensor]
-        #     points_rot = points_rot[:, :3]
+            points = socc[0]
+            ones_column = np.ones((points.shape[0], 1))
+            points = np.hstack((points, ones_column))
+            # points_rot = (
+            #     calibration_data[sensor] @ points.T
+            # ).T
+            # points_rot = points @ calibration_data[sensor]
+            points_rot = points @ np.linalg.inv(calibration_data[sensor])
+            # points_rot = (
+            #     np.linalg.inv(calibration_data[sensor]) @ points.T
+            # ).T
+            points_rot = points_rot[:, :3]
 
-        #     all_points_l.append(points_rot)
-        #     all_colors_l.append(socc[1])
+            all_points_l.append(points_rot)
+            all_colors_l.append(socc[1])
 
-        # all_points: np.ndarray = np.concatenate(all_points_l, axis=0)
-        # all_colors: np.ndarray = np.concatenate(all_colors_l, axis=0)
+        all_points: np.ndarray = np.concatenate(all_points_l, axis=0)
+        all_colors: np.ndarray = np.concatenate(all_colors_l, axis=0)
 
-        # invalid_points = (
-        #     np.isnan(all_points[:, 0])
-        #     | np.isnan(all_points[:, 1])
-        #     | np.isnan(all_points[:, 2])
-        # ) | (
-        #     np.isinf(all_points[:, 0])
-        #     | np.isinf(all_points[:, 1])
-        #     | np.isinf(all_points[:, 2])
-        # )
+        invalid_points = (
+            np.isnan(all_points[:, 0])
+            | np.isnan(all_points[:, 1])
+            | np.isnan(all_points[:, 2])
+        ) | (
+            np.isinf(all_points[:, 0])
+            | np.isinf(all_points[:, 1])
+            | np.isinf(all_points[:, 2])
+        )
 
-        # all_points = all_points[~invalid_points]
-        # all_colors = all_colors[~invalid_points]
+        all_points = all_points[~invalid_points]
+        all_colors = all_colors[~invalid_points]
 
         plot.set_3D_visual(all_points, all_colors)
         plot.set_3D_trajectory(trajectory, 1.4)

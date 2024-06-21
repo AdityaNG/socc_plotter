@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def socc_label_colormap():
+def socc_ade20k_label_colormap():
     """Creates a custom label colormap for visualization.
 
     Returns:

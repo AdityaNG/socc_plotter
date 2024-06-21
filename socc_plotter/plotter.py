@@ -90,7 +90,8 @@ class Plotter:
 
         self.window_3D.resize(800, 600)
         self.window_3D.opts["center"] = Vector(0, Y_OFFSET, 0)
-        self.window_3D.opts["distance"] = 40
+        # self.window_3D.opts["distance"] = 40
+        self.window_3D.opts["distance"] = 80
         self.window_3D.opts["rotation"] = QtGui.QQuaternion(1, 0, 0, 0)
         self.window_3D.opts["fov"] = 30
         self.window_3D.opts["elevation"] = 10
@@ -213,6 +214,15 @@ class Plotter:
             & np.isclose(colors_with_alpha[:, 3], 1)
         )
         colors_with_alpha[blanks] = (0.5, 0.5, 0.5, 0.2)
+
+        # # x, y, z = -y, -z, x
+        points[:, 0], points[:, 1], points[:, 2] = (
+            -points[:, 1].copy(),
+            -points[:, 2].copy(),
+            points[:, 0].copy(),
+        )
+
+        points = points[:, [0, 2, 1]]
 
         self.graph_region.setData(
             pos=points,
