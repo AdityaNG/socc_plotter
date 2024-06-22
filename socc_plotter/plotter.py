@@ -410,7 +410,7 @@ def main():
         graph_region.setData(pos=points, color=colors)
 
     plotter = Plotter(
-        callback=callback,
+        ui_callback=callback,
     )
     plotter.start()
 

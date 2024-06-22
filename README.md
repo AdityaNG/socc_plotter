@@ -5,7 +5,7 @@
 
 Semantic Occupancy 3D Plotter. This is the plotter made by the [SOccDPT](https://adityang.github.io/SOccDPT) project to create fancy 3D visuals. You can use this for your own AV or Robotics visualization!
 
-![demo](media/demo.gif)
+![demo](https://github.com/AdityaNG/socc_plotter/raw/main/media/demo.gif)
 
 ## Install it from PyPI
 
