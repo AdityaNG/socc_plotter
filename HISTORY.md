@@ -4,6 +4,13 @@ Changelog
 
 (unreleased)
 ------------
+- Update LICENSE. [Aditya]
+- Fix(socc_plotter/media/): car obj files. [Aditya NG]
+
+
+0.1.0 (2024-06-22)
+------------------
+- Release: version 0.1.0 🚀 [Aditya NG]
 - Merge pull request #1 from
   AdityaNG/dependabot/github_actions/actions/setup-python-5. [Aditya]
 
