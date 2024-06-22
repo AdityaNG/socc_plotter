@@ -12,7 +12,6 @@ def check_opencv_installation():
         # Check if 'opencv-python-headless' is installed
         try:
             pkg_resources.require("opencv-python-headless")
-            print("opencv-python-headless is installed.")
         except (DistributionNotFound, VersionConflict):
             warnings.warn("Could not find opencv-python-headless")
             # 'opencv-python-headless' is not found or version conflict,
@@ -37,7 +36,8 @@ def check_opencv_installation():
 
         # Additional check to ensure cv2 module is actually available
         try:
-            print("OpenCV version:", cv2.__version__)
+            version = cv2.__version__
+            assert version is not None
         except AttributeError:
             print("Error: OpenCV version information is not accessible.")
 

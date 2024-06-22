@@ -43,4 +43,7 @@ setup(
         "console_scripts": ["socc_plotter = socc_plotter.__main__:main"]
     },
     extras_require={"test": read_requirements("requirements-test.txt")},
+    package_data={
+        "": ["*.obj"],
+    },
 )

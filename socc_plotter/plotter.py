@@ -1,3 +1,4 @@
+import os
 import time
 import warnings
 from typing import Callable, Optional, Tuple
@@ -22,6 +23,8 @@ from .window2d import Window2D
 from .window3d import Window3D
 
 Y_OFFSET = -25
+
+MEDIA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "media")
 
 
 class Worker(QtCore.QThread):
@@ -199,7 +202,11 @@ class Plotter:
         self.occupancy_mesh_region.rotate(180, 1, 0, 0)
         self.occupancy_mesh_region.translate(0, 0, 2)
 
-        car = vedo.load("media/car.obj")
+        car_obj_path = os.path.join(MEDIA_DIR, "car.obj")
+
+        assert os.path.isfile(car_obj_path), f"File not found: {car_obj_path}"
+
+        car = vedo.load(car_obj_path)
         # car_faces = np.array(car.faces())
         # car_vertices = np.array(car.points())
         # car_faces = car.faces()

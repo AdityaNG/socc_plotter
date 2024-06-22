@@ -1,5 +1,6 @@
 include LICENSE
 include HISTORY.md
 include Containerfile
+include socc_plotter/media/*.obj
 graft tests
 graft socc_plotter
