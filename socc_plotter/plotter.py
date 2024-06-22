@@ -249,18 +249,10 @@ class Plotter:
         )
         colors_with_alpha[blanks] = (0.5, 0.5, 0.5, 0.2)
 
-        # x, y, z = -y, -z, x
-        # points[:, 0], points[:, 1], points[:, 2] = (
-        #     -points[:, 1].copy(),
-        #     -points[:, 2].copy(),
-        #     points[:, 0].copy(),
-        # )
-
-        # points = points[:, [1, 2, 0]]
         points[:, 0], points[:, 1], points[:, 2] = (
-            -points[:, 1].copy(),
-            points[:, 2].copy(),
+            points[:, 1].copy(),
             points[:, 0].copy(),
+            -points[:, 2].copy(),
         )
 
         self.graph_region.setData(

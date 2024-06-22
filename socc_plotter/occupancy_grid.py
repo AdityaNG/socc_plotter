@@ -105,7 +105,7 @@ def uniform_density_colorwise(
         np.ceil((max_coords - min_coords) / voxel_size).astype(int) + 1
     )  # Adding 1 to include max point
 
-    grid_dims = np.clip(grid_dims, 0, float("inf")).astype(int)
+    grid_dims = np.clip(grid_dims, 1, float("inf")).astype(int)
 
     # Initialize occupancy grid and color accumulation
     occupancy_grid = np.zeros(grid_dims, dtype=int)
@@ -115,9 +115,7 @@ def uniform_density_colorwise(
     # Translate points to voxel grid
     translated_points = (point_cloud - min_coords) / voxel_size
     voxel_indices = np.floor(translated_points).astype(int)
-
-    if np.any(voxel_indices < 0):
-        raise ValueError("Voxel indices must be non-negative.")
+    voxel_indices = np.clip(voxel_indices, 0, grid_dims - 1)
 
     # Mark occupied voxels and accumulate colors
     for point, color, idx in zip(point_cloud, colors, voxel_indices):

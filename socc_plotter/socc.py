@@ -68,23 +68,10 @@ def get_socc(
 
     points, colors = uniform_density_colorwise(points, colors, 0.2, 1)
 
-    # # x, y, z = z, -x, -y
-    # points[:, 0], points[:, 1], points[:, 2] = (
-    #     points[:, 2].copy(),
-    #     -points[:, 0].copy(),
-    #     -points[:, 1].copy(),
-    # )
-    # points = points[:, [0, 1, 2]]
-    points = points[:, [0, 2, 1]]  # seems promising
-    # points = points[:, [1, 0, 2]]
-    # points = points[:, [1, 2, 0]]
-    # points = points[:, [2, 0, 1]]  # seems promising
-    # points = points[:, [2, 1, 0]]
-
     points[:, 0], points[:, 1], points[:, 2] = (
-        -points[:, 2].copy(),
         -points[:, 0].copy(),
         points[:, 1].copy(),
+        points[:, 2].copy(),
     )
 
     return (points, colors)
@@ -135,7 +122,7 @@ def get_multicam_socc(
     all_points = all_points[~invalid_points]
     all_colors = all_colors[~invalid_points]
 
-    frame_socc = (all_points, all_colors)
+    frame_socc = uniform_density_colorwise(all_points, all_colors, 0.2, 1)
 
     return frame_socc
 

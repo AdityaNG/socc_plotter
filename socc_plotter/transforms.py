@@ -4,22 +4,48 @@ import numpy as np
 from pyquaternion import Quaternion
 
 
-def quart_to_transformation_matrix(
+def quaternion_to_transformation_matrix(
     quaternion: Tuple[float, float, float, float],
     translation: Tuple[float, float, float],
 ) -> np.ndarray:
-    # Create a Quaternion object from the list
-    q = Quaternion(quaternion)
+    # Convert the quaternion to a rotation matrix
+    quaternion_obj = Quaternion(quaternion)
+    rotation_matrix = quaternion_obj.rotation_matrix
 
-    # Convert quaternion to a 3x3 rotation matrix
-    R = q.rotation_matrix
+    # Convert the rotation matrix and the translation into a 4x4 matrix
+    transformation_matrix = np.eye(4)
+    transformation_matrix[:3, :3] = rotation_matrix
+    transformation_matrix[:3, 3] = translation
+    return transformation_matrix
 
-    # Create the 4x4 transformation matrix
-    T = np.eye(4)
-    T[0:3, 0:3] = R
-    T[0:3, 3] = translation
 
-    return T
+def transformation_matrix_to_quaternion(
+    transformation_matrix: np.ndarray,
+) -> Tuple[float, float, float, float]:
+    # Extract the rotation matrix from the transformation matrix
+    rotation_matrix = transformation_matrix[:3, :3]
+
+    # Convert the rotation matrix to a quaternion
+    quaternion = Quaternion(matrix=rotation_matrix)
+    return tuple(quaternion.elements)
+
+
+# def quaternion_to_transformation_matrix(
+#     quaternion: Tuple[float, float, float, float],
+#     translation: Tuple[float, float, float],
+# ) -> np.ndarray:
+#     # Create a Quaternion object from the list
+#     q = Quaternion(quaternion)
+
+#     # Convert quaternion to a 3x3 rotation matrix
+#     R = q.rotation_matrix
+
+#     # Create the 4x4 transformation matrix
+#     T = np.eye(4)
+#     T[0:3, 0:3] = R
+#     T[0:3, 3] = translation
+
+#     return T
 
 
 def intrinsic_matrix_array(

@@ -163,14 +163,6 @@ def infer_semantics_and_depth(
 
             depth_np_rgb = depth_to_rgb(depth_np)
 
-            print("rgb_img_np", rgb_img_np.shape, rgb_img_np.dtype)
-            print("depth_np", depth_np.shape, depth_np.dtype)
-            print(
-                "pred_semantic_map_np",
-                pred_semantic_map_np_rgb.shape,
-                pred_semantic_map_np_rgb.dtype,
-            )
-
             frame_data[sensor] = {
                 "rgb": rgb_img_np,
                 "depth": depth_np,

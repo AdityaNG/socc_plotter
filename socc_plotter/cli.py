@@ -21,7 +21,7 @@ from .socc_helper import (
     get_future_vehicle_trajectory,
     infer_semantics_and_depth,
 )
-from .transforms import quart_to_transformation_matrix
+from .transforms import quaternion_to_transformation_matrix
 
 global nusc
 global frame_socc
@@ -29,9 +29,6 @@ global frame_data
 global trajectory
 global scene_index
 global current_sample_token
-# global depth_estimator
-# global model_mask2former
-# global image_processor
 
 
 nusc: Optional[NuScenes] = None
@@ -40,9 +37,6 @@ frame_data: Optional[Dict] = None
 trajectory: Optional[np.ndarray] = None
 scene_index: int = 0
 current_sample_token: Optional[str] = None
-# depth_estimator: Optional[AutoModelForDepthEstimation] = None
-# model_mask2former: Optional[Mask2FormerForUniversalSegmentation] = None
-# image_processor: Optional[AutoImageProcessor] = None
 
 
 @torch.no_grad()
@@ -60,8 +54,6 @@ def main():  # pragma: no cover
     global frame_data
     global scene_index
     global current_sample_token
-    # global depth_estimator
-    # global model_mask2former, image_processor
 
     #########################################################
     # Dataset
@@ -79,21 +71,9 @@ def main():  # pragma: no cover
         "CAM_FRONT_LEFT",
     ]
 
-    calibration_data = {}
-
-    for sensor, calibration in zip(nusc.sensor, nusc.calibrated_sensor):
-        channel = sensor["channel"]
-        if channel in sensors:
-            translation = calibration["translation"]
-            rotation = calibration["rotation"]
-            print(f"rotation[{channel}]", rotation)
-            print(f"translation[{channel}]", translation)
-            calibration_data[channel] = quart_to_transformation_matrix(
-                rotation,
-                translation,
-            )
-
     current_sample_token = cast(str, scene["first_sample_token"])
+
+    precompute = True
 
     def loop():
         global nusc
@@ -103,10 +83,7 @@ def main():  # pragma: no cover
         global scene_index
         global current_sample_token
 
-        recompute_socc = True
-
-        # global depth_estimator
-        # global model_mask2former, image_processor
+        recompute_socc = False
 
         device = (
             torch.device("cuda")
@@ -151,6 +128,33 @@ def main():  # pragma: no cover
                 current_sample_token = cast(str, scene["first_sample_token"])
                 sample = nusc.get("sample", current_sample_token)
 
+            calibration_data = {}
+
+            for sensor in sensors:
+                # PIL image
+                cam_data = nusc.get("sample_data", sample["data"][sensor])
+                calibrated_sensor_token = cam_data["calibrated_sensor_token"]
+                calibration = nusc.get(
+                    "calibrated_sensor", calibrated_sensor_token
+                )
+                translation = calibration["translation"]
+                rotation = calibration["rotation"]
+
+                calibration_data[sensor] = quaternion_to_transformation_matrix(
+                    rotation,
+                    translation,
+                )
+
+            cacheroot: str = "data/socc"
+            cache_pkl_path = os.path.join(
+                cacheroot, current_sample_token + ".pkl"
+            )
+
+            if precompute and os.path.exists(cache_pkl_path):
+                print("Skipping", current_sample_token)
+                current_sample_token = sample["next"]
+                continue
+
             print("current_sample_token", current_sample_token)
 
             frame_data = infer_semantics_and_depth(
@@ -165,6 +169,7 @@ def main():  # pragma: no cover
                 calibration_data,
                 model_mask2former,
                 image_processor,
+                cacheroot,
             )
 
             trajectory = get_future_vehicle_trajectory(
@@ -174,7 +179,7 @@ def main():  # pragma: no cover
             if recompute_socc:
 
                 frame_socc = get_multicam_socc(
-                    sensors[:2],
+                    sensors,
                     frame_data,
                     calibration_data,
                 )
@@ -184,7 +189,8 @@ def main():  # pragma: no cover
             current_sample_token = sample["next"]
             torch.cuda.empty_cache()
 
-    # loop()
+    if precompute:
+        loop()
 
     def ui_loop(plot: Plotter):
         global frame_socc

@@ -2,43 +2,44 @@ import pytest
 import numpy as np
 from pyquaternion import Quaternion
 from socc_plotter.transforms import (
-    quart_to_transformation_matrix,
+    quaternion_to_transformation_matrix,
     intrinsic_matrix_array,
     estimate_intrinsics,
     create_transformation_matrix,
+    transformation_matrix_to_quaternion,
 )
 
 
-# Test cases for quart_to_transformation_matrix
-def test_quart_to_transformation_matrix_identity():
+# Test cases for quaternion_to_transformation_matrix
+def test_quaternion_to_transformation_matrix_identity():
     quaternion = (1, 0, 0, 0)  # Identity quaternion
     translation = (0, 0, 0)
     expected_matrix = np.eye(4)
-    result = quart_to_transformation_matrix(quaternion, translation)
+    result = quaternion_to_transformation_matrix(quaternion, translation)
     assert np.allclose(
         result, expected_matrix
     ), "Identity quaternion should produce identity matrix"
 
 
-def test_quart_to_transformation_matrix_translation():
+def test_quaternion_to_transformation_matrix_translation():
     quaternion = (1, 0, 0, 0)
     translation = (1, 2, 3)
     expected_matrix = np.array(
         [[1, 0, 0, 1], [0, 1, 0, 2], [0, 0, 1, 3], [0, 0, 0, 1]]
     )
-    result = quart_to_transformation_matrix(quaternion, translation)
+    result = quaternion_to_transformation_matrix(quaternion, translation)
     assert np.allclose(
         result, expected_matrix
     ), "Translation should be correctly applied"
 
 
-def test_quart_to_transformation_matrix_rotation():
+def test_quaternion_to_transformation_matrix_rotation():
     quaternion = (0.7071068, 0.7071068, 0, 0)  # 90 degrees around x-axis
     translation = (0, 0, 0)
     expected_matrix = np.array(
         [[1, 0, 0, 0], [0, 0, -1, 0], [0, 1, 0, 0], [0, 0, 0, 1]]
     )
-    result = quart_to_transformation_matrix(quaternion, translation)
+    result = quaternion_to_transformation_matrix(quaternion, translation)
     assert np.allclose(
         result, expected_matrix, atol=1e-6
     ), "90 degrees rotation around x-axis should be correct"
@@ -105,3 +106,33 @@ def test_create_transformation_matrix_rotation():
     assert np.allclose(
         result, expected_matrix, atol=1e-6
     ), "90 degrees rotation around x-axis should be correct"
+
+
+def test_quarternion_to_transform_and_back():
+    # Given quaternion and translation
+    quaternions = [
+        [0.9999984769132877, 0.0, 0.0, 0.0017453283658983088],
+        [0.977, -0.153, 0.1, 0.1],
+    ]
+    translations = [[3.412, 0.0, 0.5], [1.0, 2.0, 3.0]]
+
+    for quaternion, translation in zip(quaternions, translations):
+        # Convert quaternion to transformation matrix
+        transformation_matrix = quaternion_to_transformation_matrix(
+            quaternion, translation
+        )
+
+        # Convert transformation matrix back to quaternion
+        transformed_quaternion = transformation_matrix_to_quaternion(
+            transformation_matrix
+        )
+
+        # Compare the obtained quaternion with the original
+        for q1, q2 in zip(quaternion, transformed_quaternion):
+            assert np.isclose(
+                q1, q2, atol=1e-3
+            ), f"Expected {quaternion}, but got {transformed_quaternion}"
+
+        print(
+            f"Test passed for quaternion {quaternion} with translation {translation}"
+        )
