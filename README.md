@@ -5,7 +5,7 @@
 
 Semantic Occupancy 3D Plotter. This is the plotter made by the [SOccDPT](https://adityang.github.io/SOccDPT) project to create fancy 3D visuals. You can use this for your own AV or Robotics visualization!
 
-![demo](media/dem)
+![demo](media/demo.gif)
 
 ## Install it from PyPI
 
@@ -81,11 +81,11 @@ Cite our work if you find it useful
 
 ## TODO
 
-- [ ] Demo
+- [x] Demo
     - [x] RGB Frame
     - [x] Depth perception
     - [x] Semantic segmentation
-    - [] NuScenes Calibration
+    - [x] NuScenes Calibration
     - [x] NuScenes Vehicle trajectory
     - [x] Semantic Occupancy Grid
 - [ ] Ensure demo dependencies are seperate from the module
