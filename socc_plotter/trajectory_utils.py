@@ -1,9 +1,12 @@
 import math
+from typing import Dict
 
 import numpy as np
 
 
-def create_voxel_meshes(points, size, color=(0, 0, 1, 1)):
+def create_voxel_meshes(
+    points: np.ndarray, size: float, color=(0, 0, 1, 1)
+) -> Dict:
     num_points = points.shape[0]
     color = np.array(color, dtype=np.float32)
     if len(color.shape) == 1:

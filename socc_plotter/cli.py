@@ -6,6 +6,7 @@ Demo to run on NuScenes Mini
 import os
 from typing import Dict, Optional, Tuple, cast
 
+import cv2
 import numpy as np
 import torch
 from nuscenes.nuscenes import NuScenes
@@ -73,7 +74,7 @@ def main():  # pragma: no cover
 
     current_sample_token = cast(str, scene["first_sample_token"])
 
-    precompute = True
+    precompute = False
 
     def loop():
         global nusc
@@ -116,6 +117,8 @@ def main():  # pragma: no cover
         )
         #########################################################
         print("Done loading models")
+
+        frame_index = 0
 
         while True:
             try:
@@ -186,8 +189,15 @@ def main():  # pragma: no cover
             else:
                 frame_socc = frame_data["socc"]
 
+            frame_data["index"] = frame_index
+
+            frame_index += 1
+
             current_sample_token = sample["next"]
             torch.cuda.empty_cache()
+            import time
+
+            time.sleep(0.5)
 
     if precompute:
         loop()
@@ -206,6 +216,9 @@ def main():  # pragma: no cover
         if frame_socc is None:
             return
 
+        if "index" not in frame_data:
+            return
+
         img = get_2D_visual(frame_data, trajectory)
         plot.set_2D_visual(img)
 
@@ -215,6 +228,18 @@ def main():  # pragma: no cover
 
         plot.set_3D_visual(all_points, all_colors)
         plot.set_3D_trajectory(trajectory, 1.4)
+
+        frame_3d = plot.get_3d_frame()
+        frame_3d = cv2.resize(frame_3d, img.shape[:2][::-1])
+
+        vis = np.hstack((img, frame_3d))
+
+        vis = cv2.resize(vis, (0, 0), fx=0.25, fy=0.25)
+
+        cv2.imwrite(
+            "data/demo_video/" + f"{frame_data['index']}".zfill(10) + ".png",
+            vis,
+        )
 
         # plot.sleep(0.3)
 

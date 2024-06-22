@@ -13,7 +13,11 @@ from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import QLabel, QVBoxLayout
 from pyqtgraph.Vector import Vector
 
-from .trajectory_utils import create_meshes, trajectory_to_3D
+from .trajectory_utils import (
+    create_meshes,
+    create_voxel_meshes,
+    trajectory_to_3D,
+)
 from .window2d import Window2D
 from .window3d import Window3D
 
@@ -110,7 +114,7 @@ class Plotter:
         self.window_3D.resize(800, 600)
         self.window_3D.opts["center"] = Vector(0, Y_OFFSET, 0)
         # self.window_3D.opts["distance"] = 40
-        self.window_3D.opts["distance"] = 80
+        self.window_3D.opts["distance"] = 50
         self.window_3D.opts["rotation"] = QtGui.QQuaternion(1, 0, 0, 0)
         self.window_3D.opts["fov"] = 30
         self.window_3D.opts["elevation"] = 10
@@ -141,9 +145,24 @@ class Plotter:
         # self.mesh_region.translate(0, Y_OFFSET, 0)
         self.mesh_region.rotate(180, 1, 0, 0)
 
+        # points = np.zeros((1, 3), dtype=np.float32)
+        points = np.array(
+            [
+                [8, 0, 1],
+                [8, 1, 2],
+                [8, 0, 3],
+            ],
+            dtype=np.float32,
+        )
+        colors = np.ones_like(points)
+        colors_with_alpha = np.ones((colors.shape[0], 4))
+
+        # Copy the RGB values
+        colors_with_alpha[:, :3] = colors
+
         self.graph_region = gl.GLScatterPlotItem(
-            pos=np.zeros((1, 3), dtype=np.float32),
-            color=(0, 1, 0, 0.5),
+            pos=points,
+            color=colors_with_alpha,
             size=0.1,
             # size=0.05,
             pxMode=False,
@@ -153,6 +172,32 @@ class Plotter:
         # self.graph_region.rotate(180, 0, 0, 1)
         # self.graph_region.translate(0, Y_OFFSET, 0)
         self.graph_region.translate(0, 0, 2)
+
+        occupancy_mesh_data = create_voxel_meshes(
+            points,
+            0.5,
+            # color=(1.0, 1.0, 1.0, 1.0)
+            color=colors_with_alpha,
+        )
+
+        occ_vertexes = np.array(
+            occupancy_mesh_data["vertexes"], dtype=np.float32
+        )
+        occ_faces = np.array(occupancy_mesh_data["faces"], dtype=np.uint32)
+        occ_faceColors = np.array(
+            occupancy_mesh_data["faceColors"], dtype=np.float32
+        )
+
+        self.occupancy_mesh_region = gl.GLMeshItem(
+            pos=np.array([0, Y_OFFSET, 0], dtype=np.float32).reshape(1, 3),
+            vertexes=occ_vertexes,
+            faces=occ_faces,
+            faceColors=occ_faceColors,
+            drawEdges=False,
+            edgeColor=(0, 0, 0, 1),
+        )
+        self.occupancy_mesh_region.rotate(180, 1, 0, 0)
+        self.occupancy_mesh_region.translate(0, 0, 2)
 
         car = vedo.load("media/car.obj")
         # car_faces = np.array(car.faces())
@@ -164,7 +209,7 @@ class Plotter:
         car_colors = np.array(
             [[0.5, 0.5, 0.5, 1] for i in range(len(car_faces))]
         )
-        car_vertices = 0.025 * car_vertices * 2.0
+        car_vertices = 0.025 * car_vertices * 2.2
 
         self.car_mesh_region = gl.GLMeshItem(
             pos=np.array([0, Y_OFFSET, 0], dtype=np.float32).reshape(1, 3),
@@ -178,7 +223,7 @@ class Plotter:
         self.car_mesh_region.rotate(180, 0, 0, 1)
         # self.car_mesh_region.translate(0, Y_OFFSET, 1.0)
 
-        # self.window_3D.addItem(self.occupancy_mesh_region)
+        self.window_3D.addItem(self.occupancy_mesh_region)
         self.window_3D.addItem(self.graph_region)
         self.window_3D.addItem(self.grid_item)
 
@@ -255,10 +300,67 @@ class Plotter:
             -points[:, 2].copy(),
         )
 
+        DIST = 75
+
+        in_range = (
+            np.logical_and(-DIST < points[:, 0], points[:, 0] < DIST)
+            & np.logical_and(-DIST < points[:, 1], points[:, 1] < DIST)
+            & np.logical_and(-DIST < points[:, 2], points[:, 2] < DIST)
+        )
+
+        points = points[in_range]
+        colors_with_alpha = colors_with_alpha[in_range]
+
+        is_car = (
+            np.logical_and(
+                150 / 255.0 < colors_with_alpha[:, 2],
+                colors_with_alpha[:, 2] < 255 / 255.0,
+            )
+            & np.logical_and(
+                150 < colors_with_alpha[:, 2],
+                colors_with_alpha[:, 2] < 255 / 255.0,
+            )
+            & np.logical_and(
+                0 / 255.0 < colors_with_alpha[:, 1],
+                colors_with_alpha[:, 1] < 150 / 255.0,
+            )
+            & np.logical_and(
+                0 / 255.0 < colors_with_alpha[:, 0],
+                colors_with_alpha[:, 0] < 150 / 255.0,
+            )
+        )
+        occ_points = points[is_car]
+        occ_colors = colors_with_alpha[is_car]
+
+        occupancy_mesh_data = create_voxel_meshes(
+            occ_points,
+            0.5,
+            color=occ_colors,
+        )
+
+        self.occupancy_mesh_region.setMeshData(
+            vertexes=np.array(
+                occupancy_mesh_data["vertexes"], dtype=np.float32
+            ),
+            faces=np.array(occupancy_mesh_data["faces"], dtype=np.uint32),
+            faceColors=np.array(
+                occupancy_mesh_data["faceColors"], dtype=np.float32
+            ),
+        )
+
         self.graph_region.setData(
             pos=points,
             color=colors_with_alpha,
         )
+
+    def get_3d_frame(
+        self,
+    ) -> np.ndarray:
+        # Get frame from window_3D
+        frame_buffer = self.window_3D.grabFramebuffer()
+        visual_3D = qimage2ndarray.rgb_view(frame_buffer)
+        visual_3D = cv2.cvtColor(visual_3D, cv2.COLOR_RGB2BGR)
+        return visual_3D
 
     def sleep(self, seconds: float) -> None:
         msecs = int(seconds * 1000)

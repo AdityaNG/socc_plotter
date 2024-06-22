@@ -8,3 +8,4 @@ qimage2ndarray
 vedo
 pydantic
 pillow
+pyquaternion

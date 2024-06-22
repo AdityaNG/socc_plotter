@@ -5,6 +5,8 @@
 
 Semantic Occupancy 3D Plotter. This is the plotter made by the [SOccDPT](https://adityang.github.io/SOccDPT) project to create fancy 3D visuals. You can use this for your own AV or Robotics visualization!
 
+![demo](media/dem)
+
 ## Install it from PyPI
 
 ```bash
@@ -48,7 +50,7 @@ tar -xf v1.0-mini.tgz
 Install a few dependencies for the demo
 ```
 pip install nuscenes-devkit==1.1.10
-pip install transformers torch torchvision timm pyquaternion accelerate general_navigation
+pip install transformers torch torchvision timm accelerate general_navigation
 ```
 
 Run the demo
