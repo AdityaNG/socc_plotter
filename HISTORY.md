@@ -4,6 +4,12 @@ Changelog
 
 (unreleased)
 ------------
+- Fix(car): obj file init. [Aditya NG]
+
+
+0.2.0 (2024-06-22)
+------------------
+- Release: version 0.2.0 🚀 [Aditya NG]
 - Update LICENSE. [Aditya]
 - Fix(socc_plotter/media/): car obj files. [Aditya NG]
 
