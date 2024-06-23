@@ -2,6 +2,9 @@
 
 [![codecov](https://codecov.io/gh/AdityaNG/socc_plotter/branch/main/graph/badge.svg?token=socc_plotter_token_here)](https://codecov.io/gh/AdityaNG/socc_plotter)
 [![CI](https://github.com/AdityaNG/socc_plotter/actions/workflows/main.yml/badge.svg)](https://github.com/AdityaNG/socc_plotter/actions/workflows/main.yml)
+[![GitHub License](https://img.shields.io/github/license/AdityaNG/socc_plotter)](https://github.com/AdityaNG/socc_plotter/blob/main/LICENSE)
+[![PyPI - Version](https://img.shields.io/pypi/v/socc_plotter)](https://pypi.org/project/socc_plotter/)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/socc_plotter)
 
 Semantic Occupancy 3D Plotter. This is the plotter made by the [SOccDPT](https://adityang.github.io/SOccDPT) project to create fancy 3D visuals. You can use this for your own AV or Robotics visualization!
 
