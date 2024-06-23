@@ -4,6 +4,12 @@ Changelog
 
 (unreleased)
 ------------
+- Docs(README): stickers. [Aditya NG]
+
+
+0.3.0 (2024-06-22)
+------------------
+- Release: version 0.3.0 🚀 [Aditya NG]
 - Fix(car): obj file init. [Aditya NG]
 
 
