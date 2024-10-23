@@ -10,12 +10,16 @@ from .transforms import estimate_intrinsics
 def get_socc(
     disparity: np.ndarray,
     semantics: np.ndarray,
-    scale: Tuple[float, float, float] = (1, 1, -1),
+    scale: Tuple[float, float, float] = (1, 1, 1),
     intrinsics: Optional[np.ndarray] = None,
     subsample: int = 30,
     mask: Optional[np.ndarray] = None,
     fov_x: float = 70,  # degrees
     fov_y: float = 70,  # degrees
+    baseline: float = 1.5,
+    clip_range: float = 80.0,
+    voxel_size: float = 0.2,
+    occupancy_threshold: int = 1,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Takes depth and semantics as input and produces 3D semantic occupancy
@@ -31,7 +35,6 @@ def get_socc(
     cx = intrinsics[0, 2]
     cy = intrinsics[1, 2]
     focal_length = (fx + fy) / 2.0
-    baseline = 1.5
     points = np.zeros((HEIGHT, WIDTH, 3), dtype=np.float32)
 
     if mask is None:
@@ -64,12 +67,12 @@ def get_socc(
     points = points[::subsample, :]
     colors = colors[::subsample, :]
 
-    points = points.clip(-80, 80)
+    points = points.clip(-clip_range, clip_range)
 
-    points, colors = uniform_density_colorwise(points, colors, 0.2, 1)
+    points, colors = uniform_density_colorwise(points, colors, voxel_size, occupancy_threshold)
 
     points[:, 0], points[:, 1], points[:, 2] = (
-        -points[:, 0].copy(),
+        points[:, 0].copy(),
         points[:, 1].copy(),
         points[:, 2].copy(),
     )
