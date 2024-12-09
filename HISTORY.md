@@ -4,6 +4,13 @@ Changelog
 
 (unreleased)
 ------------
+- Feat(socc): depth mode. [AdityaNG]
+- Update LICENSE. [Aditya]
+
+
+0.4.0 (2024-06-23)
+------------------
+- Release: version 0.4.0 🚀 [Aditya NG]
 - Docs(README): stickers. [Aditya NG]
 
 
