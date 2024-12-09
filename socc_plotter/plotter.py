@@ -48,11 +48,15 @@ class Plotter:
     _compute_callback: Optional[Callable] = None
 
     def __init__(
-        self, ui_callback: Callable, compute_callback=Optional[Callable]
+        self,
+        ui_callback: Callable,
+        compute_callback=Optional[Callable],
+        center_obj: str = "car.obj",
     ):
         """
         Semantic Occupancy Plotter
         """
+        assert center_obj in ("car.obj", "")
 
         # TODO: preemptive check to ensure opencv-python-headless is installed
 
@@ -174,7 +178,7 @@ class Plotter:
         self.graph_region.rotate(180, 1, 0, 0)
         # self.graph_region.rotate(180, 0, 0, 1)
         # self.graph_region.translate(0, Y_OFFSET, 0)
-        self.graph_region.translate(0, 0, 2)
+        # self.graph_region.translate(0, 0, 2)
 
         occupancy_mesh_data = create_voxel_meshes(
             points,
@@ -202,32 +206,35 @@ class Plotter:
         self.occupancy_mesh_region.rotate(180, 1, 0, 0)
         self.occupancy_mesh_region.translate(0, 0, 2)
 
-        car_obj_path = os.path.join(MEDIA_DIR, "car.obj")
+        if center_obj:
+            car_obj_path = os.path.join(MEDIA_DIR, center_obj)
 
-        assert os.path.isfile(car_obj_path), f"File not found: {car_obj_path}"
+            assert os.path.isfile(
+                car_obj_path
+            ), f"File not found: {car_obj_path}"
 
-        car = vedo.load(car_obj_path)
-        # car_faces = np.array(car.faces())
-        # car_vertices = np.array(car.points())
-        # car_faces = car.faces()
-        # car_vertices = car.points()
-        car_faces = car.cells
-        car_vertices = car.vertices
-        car_colors = np.array(
-            [[0.5, 0.5, 0.5, 1] for i in range(len(car_faces))]
-        )
-        car_vertices = 0.025 * car_vertices * 2.2
+            car = vedo.load(car_obj_path)
+            # car_faces = np.array(car.faces())
+            # car_vertices = np.array(car.points())
+            # car_faces = car.faces()
+            # car_vertices = car.points()
+            car_faces = car.cells
+            car_vertices = car.vertices
+            car_colors = np.array(
+                [[0.5, 0.5, 0.5, 1] for i in range(len(car_faces))]
+            )
+            car_vertices = 0.025 * car_vertices * 2.2
 
-        self.car_mesh_region = gl.GLMeshItem(
-            pos=np.array([0, Y_OFFSET, 0], dtype=np.float32).reshape(1, 3),
-            vertexes=car_vertices,
-            faces=car_faces,
-            faceColors=car_colors,
-            drawEdges=False,
-            edgeColor=(0, 0, 0, 1),
-        )
-        self.car_mesh_region.rotate(90, 1, 0, 0)
-        self.car_mesh_region.rotate(180, 0, 0, 1)
+            self.car_mesh_region = gl.GLMeshItem(
+                pos=np.array([0, Y_OFFSET, 0], dtype=np.float32).reshape(1, 3),
+                vertexes=car_vertices,
+                faces=car_faces,
+                faceColors=car_colors,
+                drawEdges=False,
+                edgeColor=(0, 0, 0, 1),
+            )
+            self.car_mesh_region.rotate(90, 1, 0, 0)
+            self.car_mesh_region.rotate(180, 0, 0, 1)
         # self.car_mesh_region.translate(0, Y_OFFSET, 1.0)
 
         self.window_3D.addItem(self.occupancy_mesh_region)
@@ -235,17 +242,21 @@ class Plotter:
         self.window_3D.addItem(self.grid_item)
 
         self.window_3D.addItem(self.mesh_region)
-        self.window_3D.addItem(self.car_mesh_region)
+        if center_obj:
+            self.window_3D.addItem(self.car_mesh_region)
         self.window_3D.setCameraPosition(
             pos=QtGui.QVector3D(0, -Y_OFFSET, 0),
         )
         ##################################################
 
-    def set_3D_trajectory(self, trajectory: np.ndarray, wheel_base: float):
+    def set_3D_trajectory(
+        self,
+        trajectory: np.ndarray,
+        wheel_base: float,
+        color: Tuple[float, float, float, float] = (0.0, 1.0, 0.0, 1.0),
+    ):
         trajectory_3D = trajectory_to_3D(trajectory)
-        mesh_data = create_meshes(
-            trajectory_3D, wheel_base, color=(0.0, 1.0, 0.0, 1.0)
-        )
+        mesh_data = create_meshes(trajectory_3D, wheel_base, color=color)
         self.mesh_region.setMeshData(
             vertexes=np.array(mesh_data["vertexes"], dtype=np.float32),
             faces=np.array(mesh_data["faces"], dtype=np.uint32),
